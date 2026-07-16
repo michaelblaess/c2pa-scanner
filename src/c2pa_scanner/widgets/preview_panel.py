@@ -5,7 +5,6 @@ from __future__ import annotations
 import contextlib
 import io
 import os
-from pathlib import Path
 from typing import Any, cast
 
 from PIL import Image as PILImage
@@ -95,15 +94,9 @@ class PreviewPanel(Widget):
             else:
                 yield Static("", id="preview-image")
 
-    def show_image(self, path: Path | None) -> None:
-        title = self.query_one("#preview-title", Static)
-        title.update(path.name if path is not None else "Keine Auswahl")
-        if path is None:
-            self._clear()
-            return
-        try:
-            data = path.read_bytes()
-        except OSError:
+    def show_bytes(self, data: bytes | None, title: str) -> None:
+        self.query_one("#preview-title", Static).update(title or "Keine Auswahl")
+        if data is None:
             self._clear()
             return
         if self._widget_cls is not None:
