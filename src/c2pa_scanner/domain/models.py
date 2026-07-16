@@ -23,9 +23,10 @@ class Verdict(Enum):
 
 @dataclass(frozen=True)
 class ImageFinding:
-    """Ergebnis der C2PA-Pruefung eines einzelnen Bildes."""
+    """Ergebnis der C2PA-Pruefung eines einzelnen Bildes aus einer Seite."""
 
-    source: str
+    image_url: str
+    page_url: str
     has_c2pa: bool
     digital_source_type: str | None
     verdict: Verdict

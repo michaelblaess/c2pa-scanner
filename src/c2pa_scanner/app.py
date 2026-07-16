@@ -1,15 +1,17 @@
-"""Textual-App: C2PA-/KI-Scanner mit Bildvorschau."""
+"""Textual-App: C2PA-/KI-Scanner ueber Sitemaps mit Bildvorschau."""
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
+import httpx
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.widgets import DataTable, Footer, Header
-from textual_fspicker import FileSave, SelectDirectory
+from textual_fspicker import FileSave
 from textual_themes import THEME_DISPLAY_NAMES, register_all
 from textual_widgets import (
     AboutScreen,
@@ -21,37 +23,47 @@ from textual_widgets import (
     LogMessage,
     LogPanel,
     LogRouter,
+    UrlInputScreen,
     VerticalSplitter,
 )
 
 from c2pa_scanner import __author__, __version__, __year__
 from c2pa_scanner.domain.models import ImageFinding, Verdict
-from c2pa_scanner.infrastructure.c2pa_reader import C2paLibReader
-from c2pa_scanner.infrastructure.image_source import iter_images
+from c2pa_scanner.infrastructure.history import HistoryEntry, HistoryStore
 from c2pa_scanner.infrastructure.settings import JsonSettingsStore
-from c2pa_scanner.services.classify import classify
+from c2pa_scanner.services.sitemap_scan import SitemapScanService
 from c2pa_scanner.widgets.findings_table import FindingsTable
 from c2pa_scanner.widgets.preview_panel import PreviewPanel
 
+_USER_AGENT = "Mozilla/5.0 (c2pa-scanner)"
+
 _ABOUT_DESCRIPTION = (
     "Selbstprüf-Werkzeug für C2PA-/KI-Herkunft in Bildern.\n\n"
-    "Es prüft deine EIGENEN Bilder - ausdrücklich NICHT zum Durchleuchten fremder\n"
-    "Seiten oder für Abmahnungen. Der C2PA-Scan ist nur ein Indiz, kein Rechtsgutachten.\n\n"
+    "Es prüft die Bilder deiner EIGENEN Seiten (per Sitemap) - ausdrücklich NICHT\n"
+    "zum Durchleuchten fremder Seiten oder für Abmahnungen. Der C2PA-Scan ist nur\n"
+    "ein Indiz, kein Rechtsgutachten.\n\n"
     "Rechtsgrundlage: EU AI Act (VO 2024/1689), Artikel 50 - gültig ab 2. August 2026."
 )
 
 
+def _url_name(url: str) -> str:
+    path = url.split("?")[0].split("#")[0].rstrip("/")
+    return path.rsplit("/", 1)[-1] or url
+
+
 class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # type: ignore[misc]
-    """Hauptanwendung: Ordner scannen, C2PA/KI erkennen, Bild vorschauen."""
+    """Sitemap laden, Seiten crawlen, Bilder auf C2PA/KI pruefen, Bild vorschauen."""
 
     CSS_PATH = "app.tcss"
     TITLE = f"c2pa-scanner v{__version__}"
 
     BINDINGS = [
-        Binding("o,O", "choose_folder", "Ordner", key_display="o",
-                tooltip="Einen Ordner zum Scannen auswaehlen"),
+        Binding("o,O", "choose_sitemap", "Sitemap", key_display="o",
+                tooltip="Sitemap-URL eingeben (http/https)"),
         Binding("c,C", "scan", "Scan", key_display="c",
-                tooltip="Den aktuellen Ordner (erneut) auf C2PA/KI scannen"),
+                tooltip="Die aktuelle Sitemap (erneut) crawlen und Bilder pruefen"),
+        Binding("h,H", "show_history", "History", key_display="h",
+                tooltip="Fruehere Sitemaps auswaehlen"),
         Binding("m,M", "make_testimage", "Testbild", key_display="m",
                 tooltip="Ein signiertes C2PA-Testbild erzeugen und speichern"),
         Binding("l,L", "toggle_log", "Log", key_display="l",
@@ -65,7 +77,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         Binding("q,Q", "quit", "Beenden", key_display="q", tooltip="App beenden"),
     ]
 
-    def __init__(self, start_folder: Path | None = None) -> None:
+    def __init__(self, start_sitemap: str | None = None) -> None:
         super().__init__()
         self.crash_guard_lang = "de"
         register_all(self)
@@ -76,25 +88,27 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         if isinstance(theme, str) and theme in self.available_themes:
             self.theme = theme
 
-        self._recursive = bool(settings.get("recursive", True))
-        last = settings.get("last_folder")
-        self._folder: Path | None = start_folder or (
-            Path(str(last)) if isinstance(last, str) and last else None
+        last = settings.get("last_sitemap")
+        self._sitemap: str | None = start_sitemap or (
+            str(last) if isinstance(last, str) and last else None
         )
-        self._reader = C2paLibReader()
+        self._history = HistoryStore()
+        self._preview_cache: dict[str, bytes] = {}
+        self._pages = 0
         self._scanning = False
 
     def compose(self) -> ComposeResult:
         yield Header()
         yield InfoHeader(
             [
-                InfoItem("folder", "Ordner", "-"),
-                InfoItem("total", "Bilder", "0"),
-                InfoItem("label", "KI-Label noetig", "0"),
+                InfoItem("sitemap", "Sitemap", "-"),
+                InfoItem("pages", "Seiten", "0"),
+                InfoItem("images", "Bilder", "0"),
+                InfoItem("label", "KI-Label", "0"),
                 InfoItem("errors", "Fehler", "0"),
             ],
-            columns=4,
-            separator="   |   ",
+            columns=5,
+            separator="  |  ",
             id="stats",
         )
         with Horizontal(id="main"):
@@ -107,61 +121,101 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
 
     def on_mount(self) -> None:
         self._update_stats()
-        if self._folder is not None:
+        if self._sitemap is not None:
             self.action_scan()
 
     # --- Scan ---------------------------------------------------------------
 
     def action_scan(self) -> None:
-        if self._folder is None:
-            self.notify("Kein Ordner gewählt - mit 'o' einen auswählen.", severity="warning")
+        if self._sitemap is None:
+            self.notify("Keine Sitemap - mit 'o' eine URL eingeben oder 'h' fuer History.",
+                        severity="warning")
             return
         if self._scanning:
             return
-        self._run_scan(self._folder)
+        self._run_scan(self._sitemap)
 
-    @work(thread=True, exclusive=True)
-    def _run_scan(self, folder: Path) -> None:
+    @work(exclusive=True)
+    async def _run_scan(self, sitemap: str) -> None:
         self._scanning = True
-        self.call_from_thread(self._begin_scan)
-        findings: list[ImageFinding] = []
-        for path in iter_images(folder, recursive=self._recursive):
-            try:
-                has_c2pa, dst = self._reader.read(path)
-                finding = ImageFinding(str(path), has_c2pa, dst, classify(dst, has_c2pa))
-            except Exception as exc:  # noqa: BLE001 - defektes Bild darf den Lauf nicht killen
-                finding = ImageFinding(str(path), False, None, Verdict.ERROR, str(exc))
-            findings.append(finding)
-            self.call_from_thread(self._add_row, finding)
-        self.call_from_thread(self._finish_scan, findings)
-        self._scanning = False
-
-    def _begin_scan(self) -> None:
         table = self.query_one("#results", FindingsTable)
         table.scanning = True
         table.clear_findings()
-        self.query_one("#preview", PreviewPanel).show_image(None)
-        self.post_message(LogMessage.info(f"Scan: {self._folder}"))
+        self._pages = 0
+        self.query_one("#preview", PreviewPanel).show_bytes(None, "")
         self._update_stats()
+        self.post_message(LogMessage.info(f"Scan: {sitemap}"))
 
-    def _add_row(self, finding: ImageFinding) -> None:
-        self.query_one("#results", FindingsTable).add_finding(finding)
-        self._update_stats()
+        try:
+            await SitemapScanService().scan(
+                sitemap,
+                on_pages=self._on_pages,
+                on_finding=self._on_finding,
+                on_log=self._on_log,
+            )
+        except Exception as exc:  # noqa: BLE001 - Fehler dem User zeigen, nicht crashen
+            self.post_message(LogMessage.error(f"Scan-Fehler: {exc}"))
+            self.notify(f"Scan fehlgeschlagen: {exc}", severity="error")
+            table.scanning = False
+            self._scanning = False
+            return
 
-    def _finish_scan(self, findings: list[ImageFinding]) -> None:
-        table = self.query_one("#results", FindingsTable)
         table.scanning = False
         table.sort_now()
+        self._scanning = False
+        findings = table.findings
         needs = sum(1 for f in findings if f.verdict.needs_label)
+        self._record_history(sitemap, self._pages, len(findings), needs)
         self.post_message(
             LogMessage.success(f"Fertig: {len(findings)} Bilder, {needs} Label-pflichtig")
         )
-        self.notify(f"{len(findings)} Bilder gescannt, {needs} KI-Label nötig")
+        self.notify(f"{len(findings)} Bilder, {needs} KI-Label nötig")
+
+    def _on_pages(self, count: int) -> None:
+        self._pages = count
+        self._update_stats()
+
+    def _on_finding(self, finding: ImageFinding) -> None:
+        self.query_one("#results", FindingsTable).add_finding(finding)
+        self._update_stats()
+
+    def _on_log(self, message: str) -> None:
+        self.post_message(LogMessage.info(message))
+
+    def _record_history(self, sitemap: str, pages: int, images: int, needs: int) -> None:
+        self._history.add(
+            HistoryEntry(
+                sitemap=sitemap,
+                at=datetime.now().strftime("%d.%m.%Y %H:%M"),  # noqa: DTZ005 - lokale Anzeige
+                pages=pages,
+                images=images,
+                needs_label=needs,
+            )
+        )
 
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         finding = self.query_one("#results", FindingsTable).finding_for_key(event.row_key.value)
         if finding is not None:
-            self.query_one("#preview", PreviewPanel).show_image(Path(finding.source))
+            self._load_preview(finding.image_url)
+
+    @work(exclusive=True, group="preview")
+    async def _load_preview(self, image_url: str) -> None:
+        panel = self.query_one("#preview", PreviewPanel)
+        data = self._preview_cache.get(image_url)
+        if data is None:
+            try:
+                async with httpx.AsyncClient(
+                    verify=False, follow_redirects=True, timeout=15.0,
+                    headers={"User-Agent": _USER_AGENT},
+                ) as client:
+                    response = await client.get(image_url)
+                    response.raise_for_status()
+                    data = response.content
+            except Exception:  # noqa: BLE001 - Vorschau darf nie crashen
+                data = None
+            if data is not None:
+                self._preview_cache[image_url] = data
+        panel.show_bytes(data, _url_name(image_url))
 
     def _update_stats(self) -> None:
         header = self.query_one("#stats", InfoHeader)
@@ -169,30 +223,44 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         total = len(findings)
         needs = sum(1 for f in findings if f.verdict.needs_label)
         errors = sum(1 for f in findings if f.verdict is Verdict.ERROR)
-        header.set_value("folder", str(self._folder) if self._folder else "-")
-        header.set_value("total", str(total))
+        header.set_value("sitemap", self._sitemap or "-")
+        header.set_value("pages", str(self._pages))
+        header.set_value("images", str(total))
         header.set_value("label", str(needs), value_style="bold red" if needs else "dim")
         header.set_value("errors", str(errors), value_style="bold red" if errors else "dim")
 
-    # --- Ordnerwahl ---------------------------------------------------------
+    # --- Sitemap-Wahl / History --------------------------------------------
 
-    def action_choose_folder(self) -> None:
-        start = str(self._folder) if self._folder is not None else str(Path.cwd())
-        self.push_screen(SelectDirectory(location=start), callback=self._on_folder_chosen)
+    def action_choose_sitemap(self) -> None:
+        self.push_screen(
+            UrlInputScreen(initial=self._sitemap or "", lang="de"),
+            callback=self._on_sitemap_entered,
+        )
 
-    def _on_folder_chosen(self, path: Path | None) -> None:
-        if path is None:
+    def _on_sitemap_entered(self, url: str | None) -> None:
+        if url is None:
             return
-        self._folder = Path(path)
-        self._persist({"last_folder": str(self._folder)})
+        self._sitemap = url
+        self._persist({"last_sitemap": url})
+        self.action_scan()
+
+    def action_show_history(self) -> None:
+        from c2pa_scanner.screens.history_screen import HistoryScreen
+
+        self.push_screen(HistoryScreen(self._history.load()), callback=self._on_history_selected)
+
+    def _on_history_selected(self, sitemap: str | None) -> None:
+        if sitemap is None:
+            return
+        self._sitemap = sitemap
+        self._persist({"last_sitemap": sitemap})
         self.action_scan()
 
     # --- Testbild -----------------------------------------------------------
 
     def action_make_testimage(self) -> None:
-        location = str(self._folder) if self._folder is not None else str(Path.cwd())
         self.push_screen(
-            FileSave(location=location, default_file="c2pa-testbild.jpg"),
+            FileSave(location=str(Path.cwd()), default_file="c2pa-testbild.jpg"),
             callback=self._on_testimage_target,
         )
 
@@ -248,7 +316,6 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         if new_settings is None:
             return
         self._persist(new_settings)
-        self._recursive = bool(new_settings.get("recursive", self._recursive))
 
     def action_show_about(self) -> None:
         self.push_screen(

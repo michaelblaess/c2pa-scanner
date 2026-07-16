@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
 from rich.text import Text
@@ -35,6 +34,11 @@ def _short_source_type(dst: str | None) -> str:
     return dst.rstrip("/").rsplit("/", 1)[-1]
 
 
+def _url_name(url: str) -> str:
+    path = url.split("?")[0].split("#")[0].rstrip("/")
+    return path.rsplit("/", 1)[-1] or url
+
+
 class FindingsTable(DataTable[Any]):
     """DataTable, die ihre Findings selbst haelt und per Header-Klick sortiert."""
 
@@ -42,7 +46,7 @@ class FindingsTable(DataTable[Any]):
     _SORT_KEYS: dict[int, Callable[[ImageFinding], Any]] = {
         0: lambda f: _VERDICT_ORDER[f.verdict],
         1: lambda f: (f.digital_source_type or "").lower(),
-        2: lambda f: Path(f.source).name.lower(),
+        2: lambda f: _url_name(f.image_url).lower(),
     }
 
     def __init__(self, **kwargs: Any) -> None:
@@ -59,7 +63,7 @@ class FindingsTable(DataTable[Any]):
         return self._findings
 
     def on_mount(self) -> None:
-        self._base_labels = ["Verdict", "digitalSourceType", "Datei"]
+        self._base_labels = ["Verdict", "digitalSourceType", "Bild"]
         self._col_keys = list(self.add_columns(*self._base_labels))
         self._update_sort_indicator()
 
@@ -109,7 +113,7 @@ class FindingsTable(DataTable[Any]):
         self.add_row(
             Text(label, style=style),
             _short_source_type(finding.digital_source_type),
-            Path(finding.source).name,
+            _url_name(finding.image_url),
             key=str(idx),
         )
 
