@@ -81,9 +81,11 @@ class PreviewPanel(Widget):
     PreviewPanel .graphics-image { width: auto; height: auto; }
     """
 
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(self, enabled_graphics: bool = False, **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        self._backend = select_graphics_backend()
+        # Grafik (Sixel/TGP) ist opt-in: Default = Halfblock (reiner Text, ueberall
+        # sicher). Ein Sixel-Widget kann auf manchen Terminals das Rendering stoeren.
+        self._backend = select_graphics_backend() if enabled_graphics else None
         self._widget_cls = _load_graphics_widget_class(self._backend)
 
     def compose(self) -> ComposeResult:

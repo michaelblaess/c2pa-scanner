@@ -6,14 +6,14 @@ from pathlib import Path
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, VerticalScroll
-from textual.widgets import Input, Label, TabPane
+from textual.widgets import Checkbox, Input, Label, TabPane
 from textual_widgets import BaseSettingsScreen
 
 from c2pa_scanner.infrastructure.settings import JsonSettingsStore
 
 
 class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
-    """Einstellungen: Proxy plus Speicherort-Tab."""
+    """Einstellungen: Netzwerk (Proxy), Anzeige, plus Speicherort-Tab."""
 
     def app_tabs(self) -> ComposeResult:
         with (
@@ -27,9 +27,21 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
                 placeholder="http://proxy-host:port (Zscaler/Corporate)",
                 id="set-proxy",
             )
+        with (
+            TabPane("Anzeige", id="settings-tab-view"),
+            VerticalScroll(),
+            Horizontal(classes="settings-row"),
+        ):
+            yield Label("Bildvorschau")
+            yield Checkbox(
+                "Grafische Vorschau (Sixel/TGP) - Neustart nötig; sonst Text-Vorschau",
+                value=bool(self._settings.get("graphics_preview", False)),
+                id="set-graphics",
+            )
 
     def collect_app_settings(self, settings: dict[str, object]) -> None:
         settings["proxy_url"] = self.query_one("#set-proxy", Input).value.strip()
+        settings["graphics_preview"] = self.query_one("#set-graphics", Checkbox).value
 
     def storage_paths(self) -> list[tuple[str, Path]]:
         return [("Einstellungen", JsonSettingsStore().path)]
