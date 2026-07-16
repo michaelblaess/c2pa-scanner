@@ -61,13 +61,15 @@ class ResultsDataTable(DataTable[str]):
 
     async def _on_click(self, event: events.Click) -> None:
         if event.button == 3:
+            event.stop()
             meta = event.style.meta if event.style else {}
             row = meta.get("row", -1)
+            # Auf einer Zeile: Cursor dorthin -> _current_finding aktuell. Im
+            # leeren Bereich (row < 0) trotzdem das Menue oeffnen (Export/Toggle).
             if isinstance(row, int) and row >= 0:
-                event.stop()
-                self.move_cursor(row=row)  # markiert die Zeile -> _current_finding aktuell
-                self.post_message(self.RightClicked(event.screen_x, event.screen_y))
-                return
+                self.move_cursor(row=row)
+            self.post_message(self.RightClicked(event.screen_x, event.screen_y))
+            return
         await super()._on_click(event)
 
 

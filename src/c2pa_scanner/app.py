@@ -50,6 +50,14 @@ _ABOUT_DESCRIPTION = (
     "Es prüft die Bilder deiner EIGENEN Seiten (per Sitemap) - ausdrücklich NICHT\n"
     "zum Durchleuchten fremder Seiten oder für Abmahnungen. Der C2PA-Scan ist nur\n"
     "ein Indiz, kein Rechtsgutachten.\n\n"
+    "Status-Kategorien in der Tabelle:\n"
+    "  KI-generiert   - Bild vollständig von einer KI erzeugt\n"
+    "  KI-bearbeitet  - echtes Material mit KI kombiniert oder verändert\n"
+    "                   (z.B. generativer Fill, Composite aus echt + KI)\n"
+    "  C2PA (kein KI) - Herkunft signiert, aber ohne KI-Marker (z.B. Kamera)\n"
+    "  kein C2PA      - keine Herkunftsdaten im Bild gefunden\n\n"
+    "KI-generiert und KI-bearbeitet sind beide kennzeichnungspflichtig; die\n"
+    "Unterscheidung sagt nur, wie stark KI im Spiel war (IPTC digitalSourceType).\n\n"
     "Rechtsgrundlage: EU AI Act (VO 2024/1689), Artikel 50 - gültig ab 2. August 2026.\n"
     "Gesetzestext: https://eur-lex.europa.eu/eli/reg/2024/1689/oj"
 )
@@ -495,16 +503,23 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
     def on_results_data_table_right_clicked(
         self, event: ResultsDataTable.RightClicked
     ) -> None:
-        only_ai = self.query_one("#results", FindingsTable).only_ai()
+        table = self.query_one("#results", FindingsTable)
+        only_ai = table.only_ai()
+        has_rows = bool(table.shown_findings())
+        has_current = self._current_finding is not None
         items = [
-            ContextMenuItem("export_json", "Export JSON", icon="⭳"),
-            ContextMenuItem("export_jira", "Export JIRA-Tabelle", icon="⭳"),
-            ContextMenuItem("export_clip", "Export Zwischenablage (Text)", icon="⭳"),
+            ContextMenuItem("export_json", "Export JSON", icon="⭳", enabled=has_rows),
+            ContextMenuItem("export_jira", "Export JIRA-Tabelle", icon="⭳", enabled=has_rows),
+            ContextMenuItem(
+                "export_clip", "Export Zwischenablage (Text)", icon="⭳", enabled=has_rows
+            ),
             ContextMenuItem.separator(),
             ContextMenuItem(
                 "toggle_ai", "Alle anzeigen" if only_ai else "Nur KI-Bilder", icon="👁"
             ),
-            ContextMenuItem("c2pa_details", "C2PA-Details anzeigen", icon="🔎"),
+            ContextMenuItem(
+                "c2pa_details", "C2PA-Details anzeigen", icon="🔎", enabled=has_current
+            ),
         ]
         self.push_screen(
             ContextMenuScreen(items, at=(event.x, event.y)),
