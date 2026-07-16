@@ -123,6 +123,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
             self.theme = theme
         self._proxy = str(settings.get("proxy_url", ""))
         self._graphics_pref = bool(settings.get("graphics_preview", False))
+        self._render = bool(settings.get("browser_render", False))
         self._min_size = max(0, self._read_int(settings, "min_image_size", 0))
         self._concurrency = max(1, self._read_int(settings, "concurrency", 8))
         self._timeout = max(1, self._read_int(settings, "timeout", 30))
@@ -233,6 +234,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
                 on_resolved=on_resolved,
                 proxy=self._proxy,
                 min_image_size=self._min_size,
+                render=self._render,
             )
         except Exception as exc:  # noqa: BLE001 - Fehler dem User zeigen, nicht crashen
             self.post_message(LogMessage.error(f"Scan-Fehler: {exc}"))

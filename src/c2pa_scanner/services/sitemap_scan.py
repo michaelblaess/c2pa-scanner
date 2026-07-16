@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
+from contextlib import AsyncExitStack
 
 import httpx
 
 from c2pa_scanner.domain.models import ImageFinding, Verdict
+from c2pa_scanner.infrastructure.browser import PageRenderer
 from c2pa_scanner.infrastructure.c2pa_reader import image_size, read_provenance
 from c2pa_scanner.infrastructure.sitemap import load_sitemap
 from c2pa_scanner.infrastructure.web import fetch_page_images
@@ -61,6 +63,7 @@ class SitemapScanService:
         on_resolved: Callable[[str], None] | None = None,
         proxy: str = "",
         min_image_size: int = 0,
+        render: bool = False,
     ) -> None:
         self._min_size = min_image_size
         headers = {"User-Agent": _USER_AGENT}
@@ -89,6 +92,7 @@ class SitemapScanService:
             pages_done = 0
             skipped = 0
             total_pages = len(pages)
+            renderer: PageRenderer | None = None
 
             async def check_image(image_url: str, page_url: str) -> None:
                 nonlocal skipped
@@ -109,6 +113,16 @@ class SitemapScanService:
                     except Exception as exc:  # noqa: BLE001 - kaputte Seite darf den Lauf nicht killen
                         on_log(f"Seite fehlgeschlagen ({_failure_reason(exc)}): {page_url}")
                         images = []
+                    if renderer is not None:
+                        # Hybrid: die per JS ins (Shadow-)DOM gerenderten Bilder
+                        # ergaenzen die Regex-Treffer (Union, Reihenfolge stabil).
+                        try:
+                            rendered = await renderer.image_urls(page_url)
+                        except Exception as exc:  # noqa: BLE001 - Render darf den Lauf nicht killen
+                            on_log(f"Render fehlgeschlagen ({_failure_reason(exc)}): {page_url}")
+                            rendered = []
+                        if rendered:
+                            images = list(dict.fromkeys(images + rendered))
                     for image_url in images:
                         async with seen_lock:
                             if image_url in seen:
@@ -121,10 +135,16 @@ class SitemapScanService:
                 if on_progress is not None:
                     on_progress("pages", pages_done, total_pages)
 
-            await asyncio.gather(*(scan_page(page_url) for page_url in pages))
-            on_log(f"{len(seen)} eindeutige Bilder gefunden")
-            if image_tasks:
-                await asyncio.gather(*image_tasks)
+            async with AsyncExitStack() as stack:
+                if render:
+                    renderer = await stack.enter_async_context(
+                        PageRenderer(timeout=self._timeout, proxy=proxy)
+                    )
+                    on_log("Browser-Rendering aktiv (Playwright)")
+                await asyncio.gather(*(scan_page(page_url) for page_url in pages))
+                on_log(f"{len(seen)} eindeutige Bilder gefunden")
+                if image_tasks:
+                    await asyncio.gather(*image_tasks)
             if skipped:
                 on_log(f"{skipped} Bilder uebersprungen (schmaler als {self._min_size}px)")
 
