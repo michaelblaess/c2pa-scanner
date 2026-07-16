@@ -1,4 +1,4 @@
-"""Ergebnis-Tabelle: Suchleiste + Zaehler + sortierbare DataTable mit C2PA-Filter."""
+"""Ergebnis-Tabelle: Suchleiste + Zaehler + sortierbare DataTable mit KI-Filter."""
 
 from __future__ import annotations
 
@@ -7,9 +7,10 @@ from typing import Any
 from urllib.parse import urlparse
 
 from rich.text import Text
-from textual import on
+from textual import events, on
 from textual.app import ComposeResult
 from textual.containers import Vertical
+from textual.message import Message
 from textual.reactive import reactive
 from textual.widgets import DataTable, Input, Static
 from textual_widgets import SearchInputWithHistory
@@ -24,7 +25,6 @@ _VERDICT_STYLE: dict[Verdict, tuple[str, str]] = {
     Verdict.ERROR: ("Fehler", "bold red"),
 }
 
-# Sortier-Reihenfolge der Verdicts (KI-relevantes zuerst).
 _VERDICT_ORDER: dict[Verdict, int] = {
     Verdict.AI_GENERATED: 0,
     Verdict.AI_EDITED: 1,
@@ -50,15 +50,32 @@ def _page_path(url: str) -> str:
     return (parsed.path or "/") + (f"?{parsed.query}" if parsed.query else "")
 
 
-class FindingsTable(Vertical):
-    """Container: Suchleiste, Trefferzaehler und die eigentliche DataTable.
+class ResultsDataTable(DataTable[str]):
+    """DataTable, die einen Rechtsklick als RightClicked-Message meldet (Kontextmenue)."""
 
-    Haelt alle Findings und zeigt eine gefilterte/sortierte Teilmenge an.
-    """
+    class RightClicked(Message):
+        def __init__(self, x: int, y: int) -> None:
+            super().__init__()
+            self.x = x
+            self.y = y
+
+    async def _on_click(self, event: events.Click) -> None:
+        if event.button == 3:
+            meta = event.style.meta if event.style else {}
+            row = meta.get("row", -1)
+            if isinstance(row, int) and row >= 0:
+                event.stop()
+                self.move_cursor(row=row)  # markiert die Zeile -> _current_finding aktuell
+                self.post_message(self.RightClicked(event.screen_x, event.screen_y))
+                return
+        await super()._on_click(event)
+
+
+class FindingsTable(Vertical):
+    """Container: Suchleiste, Trefferzaehler und die eigentliche DataTable."""
 
     filter_text: reactive[str] = reactive("")
 
-    # Nur Spalten in diesem dict sind klickbar/sortierbar.
     _SORT_KEYS: dict[int, Callable[[ImageFinding], Any]] = {
         0: lambda f: _VERDICT_ORDER[f.verdict],
         1: lambda f: (f.digital_source_type or f.generator or "").lower(),
@@ -83,11 +100,15 @@ class FindingsTable(Vertical):
         self._base_labels: list[str] = []
         self._col_keys: list[Any] = []
         self.scanning: bool = False
-        self._only_c2pa: bool = False
+        self._only_ai: bool = False
 
     @property
     def findings(self) -> list[ImageFinding]:
         return self._findings
+
+    def shown_findings(self) -> list[ImageFinding]:
+        """Die aktuell sichtbare (gefilterte) Teilmenge - fuer Export."""
+        return self._filtered
 
     def compose(self) -> ComposeResult:
         yield SearchInputWithHistory(
@@ -97,7 +118,7 @@ class FindingsTable(Vertical):
             dropdown_id="filter-dropdown",
         )
         yield Static("", id="results-count")
-        yield DataTable(id="results-data", cursor_type="row", zebra_stripes=True)
+        yield ResultsDataTable(id="results-data", cursor_type="row", zebra_stripes=True)
 
     def on_mount(self) -> None:
         table = self.query_one("#results-data", DataTable)
@@ -114,7 +135,7 @@ class FindingsTable(Vertical):
     def _on_filter_changed(self, event: Input.Changed) -> None:
         self.filter_text = event.value
 
-    # --- oeffentliche API (von der App genutzt) ----------------------------
+    # --- oeffentliche API --------------------------------------------------
 
     def clear_findings(self) -> None:
         self._findings = []
@@ -139,15 +160,14 @@ class FindingsTable(Vertical):
         return self._filtered[idx] if 0 <= idx < len(self._filtered) else None
 
     def sort_now(self) -> None:
-        """Wendet Filter + Sortierung an (z.B. nach Scan-Ende)."""
         self._apply_filter()
 
-    def set_only_c2pa(self, value: bool) -> None:
-        self._only_c2pa = value
+    def set_only_ai(self, value: bool) -> None:
+        self._only_ai = value
         self._apply_filter()
 
-    def only_c2pa(self) -> bool:
-        return self._only_c2pa
+    def only_ai(self) -> bool:
+        return self._only_ai
 
     # --- intern ------------------------------------------------------------
 
@@ -169,7 +189,7 @@ class FindingsTable(Vertical):
         self._apply_filter()
 
     def _passes(self, finding: ImageFinding) -> bool:
-        if self._only_c2pa and not finding.has_c2pa:
+        if self._only_ai and not finding.verdict.needs_label:
             return False
         needle = self.filter_text.strip().lower()
         if not needle:
@@ -177,8 +197,9 @@ class FindingsTable(Vertical):
         label = _VERDICT_STYLE[finding.verdict][0].lower()
         return (
             needle in finding.image_url.lower()
+            or needle in finding.page_url.lower()
             or needle in label
-            or needle in (finding.digital_source_type or "").lower()
+            or needle in (finding.digital_source_type or finding.generator or "").lower()
         )
 
     def _append_row(self, finding: ImageFinding, idx: int) -> None:
