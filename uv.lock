@@ -78,6 +78,12 @@ dependencies = [
     { name = "c2pa-python" },
     { name = "cryptography" },
     { name = "pillow" },
+    { name = "rich" },
+    { name = "textual" },
+    { name = "textual-fspicker" },
+    { name = "textual-image", extra = ["textual"] },
+    { name = "textual-themes" },
+    { name = "textual-widgets" },
 ]
 
 [package.optional-dependencies]
@@ -86,14 +92,6 @@ dev = [
     { name = "poethepoet" },
     { name = "pytest" },
     { name = "ruff" },
-]
-tui = [
-    { name = "rich" },
-    { name = "textual" },
-    { name = "textual-fspicker" },
-    { name = "textual-image", extra = ["textual"] },
-    { name = "textual-themes" },
-    { name = "textual-widgets" },
 ]
 
 [package.metadata]
@@ -104,15 +102,15 @@ requires-dist = [
     { name = "pillow", specifier = ">=10.0" },
     { name = "poethepoet", marker = "extra == 'dev'", specifier = ">=0.27" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
-    { name = "rich", marker = "extra == 'tui'", specifier = ">=13.0" },
+    { name = "rich", specifier = ">=13.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
-    { name = "textual", marker = "extra == 'tui'", specifier = ">=0.80" },
-    { name = "textual-fspicker", marker = "extra == 'tui'", specifier = ">=1.0" },
-    { name = "textual-image", extras = ["textual"], marker = "extra == 'tui'", specifier = ">=0.12.0" },
-    { name = "textual-themes", marker = "extra == 'tui'", git = "https://github.com/michaelblaess/textual-themes.git" },
-    { name = "textual-widgets", marker = "extra == 'tui'", git = "https://github.com/michaelblaess/textual-widgets.git" },
+    { name = "textual", specifier = ">=0.80" },
+    { name = "textual-fspicker", specifier = ">=1.0" },
+    { name = "textual-image", extras = ["textual"], specifier = ">=0.12.0" },
+    { name = "textual-themes", git = "https://github.com/michaelblaess/textual-themes.git" },
+    { name = "textual-widgets", git = "https://github.com/michaelblaess/textual-widgets.git" },
 ]
-provides-extras = ["dev", "tui"]
+provides-extras = ["dev"]
 
 [[package]]
 name = "certifi"
