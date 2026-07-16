@@ -218,6 +218,9 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
             self._end_scan(table)
             return
 
+        # Sitemap hat sauber geladen (kein 404/Parse-Fehler) -> erst JETZT als
+        # zuletzt erfolgreiche Quelle merken, nicht schon beim Eingeben.
+        self._persist({"last_sitemap": sitemap})
         table.sort_now()
         findings = table.findings
         needs = sum(1 for f in findings if f.verdict.needs_label)
@@ -395,7 +398,6 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         if url is None:
             return
         self._sitemap = url
-        self._persist({"last_sitemap": url})
         self._sitemap_loaded()
 
     def action_load_sitemap_file(self) -> None:
@@ -414,7 +416,6 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         if path is None:
             return
         self._sitemap = str(path)
-        self._persist({"last_sitemap": str(path)})
         self._sitemap_loaded()
 
     def action_show_history(self) -> None:
@@ -426,7 +427,6 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         if sitemap is None:
             return
         self._sitemap = sitemap
-        self._persist({"last_sitemap": sitemap})
         self._sitemap_loaded()
 
     def _sitemap_loaded(self) -> None:
