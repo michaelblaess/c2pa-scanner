@@ -35,6 +35,7 @@ class TestImageExtraction:
             '<img src="/img/a.jpg">'
             '<img data-src="b.png">'
             '<img src="data:image/gif;base64,xxx">'
+            '<img src="/logo.svg">'
             '<img srcset="/c.webp 1x, /c2.webp 2x">'
             '</body></html>'
         )
@@ -43,6 +44,7 @@ class TestImageExtraction:
         assert "https://ex.com/page/b.png" in urls
         assert "https://ex.com/c.webp" in urls
         assert all(not u.startswith("data:") for u in urls)
+        assert all(not u.lower().endswith(".svg") for u in urls)  # SVG wird uebersprungen
 
 
 class TestReadBytes:

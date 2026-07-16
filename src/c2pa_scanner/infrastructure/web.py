@@ -29,8 +29,16 @@ class _ImgParser(HTMLParser):
                 self.srcs.append(first)
 
 
+def _is_svg(url: str) -> bool:
+    """True, wenn die URL auf eine SVG-Datei zeigt (SVG kann kein C2PA tragen)."""
+    return url.split("?")[0].split("#")[0].lower().rstrip("/").endswith(".svg")
+
+
 def extract_image_urls_from_html(html: str, base_url: str) -> list[str]:
-    """Loest alle <img>-Quellen relativ zu base_url auf (absolut, dedupliziert)."""
+    """Loest alle <img>-Quellen relativ zu base_url auf (absolut, dedupliziert).
+
+    SVGs werden uebersprungen - sie koennen kein C2PA-Manifest tragen.
+    """
     parser = _ImgParser()
     parser.feed(html)
     seen: set[str] = set()
@@ -39,9 +47,10 @@ def extract_image_urls_from_html(html: str, base_url: str) -> list[str]:
         if src.startswith("data:"):
             continue
         absolute = urldefrag(urljoin(base_url, src))[0]
-        if absolute and absolute not in seen:
-            seen.add(absolute)
-            result.append(absolute)
+        if not absolute or absolute in seen or _is_svg(absolute):
+            continue
+        seen.add(absolute)
+        result.append(absolute)
     return result
 
 
