@@ -97,6 +97,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         if isinstance(theme, str) and theme in self.available_themes:
             self.theme = theme
         self._proxy = str(settings.get("proxy_url", ""))
+        self._graphics_pref = bool(settings.get("graphics_preview", False))
 
         last = settings.get("last_sitemap")
         self._sitemap: str | None = start_sitemap or (
@@ -131,14 +132,16 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
                 yield HorizontalSplitter(target_id="results", min_size=6, id="logsplit")
                 yield LogPanel(lang="de", export_name="c2pa-scanner", id="log")
             yield VerticalSplitter(target_id="left", min_size=40, id="vsplit")
-            yield PreviewPanel(id="preview")
+            yield PreviewPanel(id="preview", enabled_graphics=self._graphics_pref)
         yield Footer()
 
     def on_mount(self) -> None:
         self.query_one("#log", LogPanel).border_title = "Log-Ausgabe"
         self._update_stats()
         if self._sitemap is not None:
-            self.action_scan()
+            self.post_message(
+                LogMessage.info(f"Sitemap geladen: {self._sitemap} - 'c' zum Scannen")
+            )
 
     # --- Scan ---------------------------------------------------------------
 

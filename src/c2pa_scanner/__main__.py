@@ -107,7 +107,13 @@ def _preinit_graphics() -> None:
 
 
 def _run_tui(sitemap: str | None) -> int:
-    _preinit_graphics()
+    from c2pa_scanner.infrastructure.settings import JsonSettingsStore
+
+    # Grafik-Pre-Init nur, wenn die grafische Vorschau (Sixel/TGP) aktiviert ist -
+    # sonst gar kein textual-image-Import (vermeidet DA-Query/Rendering-Risiken).
+    if bool(JsonSettingsStore().load().get("graphics_preview", False)):
+        _preinit_graphics()
+
     from textual_widgets import reset_terminal_title, set_terminal_title
 
     from c2pa_scanner.app import C2paScannerApp
