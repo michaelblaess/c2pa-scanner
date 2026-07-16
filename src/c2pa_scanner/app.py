@@ -12,7 +12,7 @@ import httpx
 from textual import events, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal
+from textual.containers import Horizontal, Vertical
 from textual.timer import Timer
 from textual.widget import Widget
 from textual.widgets import DataTable, Footer, Header, Input, Static
@@ -38,6 +38,7 @@ from c2pa_scanner import __author__, __version__, __year__
 from c2pa_scanner.domain.models import ImageFinding, Verdict
 from c2pa_scanner.infrastructure.history import HistoryEntry, HistoryStore
 from c2pa_scanner.infrastructure.settings import JsonSettingsStore
+from c2pa_scanner.services.preview_service import PreviewService
 from c2pa_scanner.services.sitemap_scan import SitemapScanService
 from c2pa_scanner.widgets.findings_table import FindingsTable, ResultsDataTable
 from c2pa_scanner.widgets.preview_panel import PreviewPanel
@@ -124,6 +125,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self._proxy = str(settings.get("proxy_url", ""))
         self._graphics_pref = bool(settings.get("graphics_preview", False))
         self._render = bool(settings.get("browser_render", False))
+        self._page_preview = bool(settings.get("page_preview", False))
         self._min_size = max(0, self._read_int(settings, "min_image_size", 0))
         self._concurrency = max(1, self._read_int(settings, "concurrency", 8))
         self._timeout = max(1, self._read_int(settings, "timeout", 30))
@@ -144,6 +146,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self._attention_on = False
         self._current_finding: ImageFinding | None = None
         self._export_content = ""
+        self._preview_service: PreviewService | None = None
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -162,7 +165,16 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         with Horizontal(id="main"):
             yield FindingsTable(id="results")
             yield VerticalSplitter(target_id="results", min_size=30, id="vsplit")
-            yield PreviewPanel(id="preview", enabled_graphics=self._graphics_pref)
+            with Vertical(id="preview-col"):
+                yield PreviewPanel(id="preview", enabled_graphics=self._graphics_pref)
+                yield HorizontalSplitter(
+                    target_id="preview", min_size=6, id="preview-split",
+                    classes="" if self._page_preview else "hidden",
+                )
+                yield PreviewPanel(
+                    id="page-preview", enabled_graphics=self._graphics_pref,
+                    classes="" if self._page_preview else "hidden",
+                )
         yield HorizontalSplitter(target_id="main", min_size=8, id="logsplit")
         yield LogPanel(lang="de", export_name="c2pa-scanner", id="log")
         yield Footer()
@@ -179,6 +191,11 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
             self.post_message(
                 LogMessage.info(f"Sitemap geladen: {self._sitemap} - 'c' zum Scannen")
             )
+
+    async def on_unmount(self) -> None:
+        # Sidecar-Browser der Seiten-Vorschau sauber schliessen.
+        if self._preview_service is not None:
+            await self._preview_service.close()
 
     # --- Scan ---------------------------------------------------------------
 
@@ -203,6 +220,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self._prog_done = 0
         self._prog_total = 0
         self.query_one("#preview", PreviewPanel).show_bytes(None, "")
+        self.query_one("#page-preview", PreviewPanel).show_bytes(None, "")
         self._update_stats()
         self.post_message(LogMessage.info(f"Scan: {sitemap}"))
         self._progress_timer = self.set_interval(0.3, self._tick_progress)
@@ -348,6 +366,27 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
             return
         if finding is not None:
             self._load_preview(finding.image_url, finding.page_url)
+            if self._page_preview:
+                self._load_page_preview(finding.page_url)
+
+    @work(exclusive=True, group="page-preview")
+    async def _load_page_preview(self, page_url: str) -> None:
+        panel = self.query_one("#page-preview", PreviewPanel)
+        if self._preview_service is None:
+            self._preview_service = PreviewService(proxy=self._proxy)
+        phases = {
+            "navigate": "Seite laden ...",
+            "consent": "Cookie-Banner ...",
+            "render": "Rendern ...",
+            "capture": "Screenshot ...",
+        }
+
+        def on_phase(phase: str) -> None:
+            panel.show_bytes(None, f"Bitte warten - {phases.get(phase, phase)}", page_url)
+
+        panel.show_bytes(None, "Bitte warten ...", page_url)
+        data = await self._preview_service.capture(page_url, on_phase=on_phase)
+        panel.show_bytes(data, "" if data else "Vorschau fehlgeschlagen", page_url)
 
     @work(exclusive=True, group="preview")
     async def _load_preview(self, image_url: str, page_url: str) -> None:
@@ -468,6 +507,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self.query_one("#results", FindingsTable).clear_findings()
         with contextlib.suppress(Exception):
             self.query_one("#preview", PreviewPanel).show_bytes(None, "")
+            self.query_one("#page-preview", PreviewPanel).show_bytes(None, "")
         self._update_stats()
         self.post_message(
             LogMessage.info(f"Sitemap geladen: {self._sitemap} - 'c' zum Scannen")

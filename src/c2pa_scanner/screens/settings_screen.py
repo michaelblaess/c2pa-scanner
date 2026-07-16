@@ -92,6 +92,19 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
                 "sicher rendert. An = pixelgenaue Vorschau, falls Dein Terminal Sixel/TGP kann.",
                 classes="hint",
             )
+            with Horizontal(classes="settings-row"):
+                yield Label("Seiten-Vorschau")
+                yield Checkbox(
+                    "Screenshot der gerenderten Seite (Playwright)",
+                    value=bool(self._settings.get("page_preview", False)),
+                    id="set-page-preview",
+                )
+            yield Static(
+                "Neustart nötig. An = unter der Bildvorschau erscheint ein Screenshot der "
+                "gerenderten Fundseite - so siehst Du ohne Absprung, ob das KI-Label auf der "
+                "Seite dargestellt wird. Nur mit grafischer Vorschau (oben) wirklich lesbar.",
+                classes="hint",
+            )
 
     @staticmethod
     def _clamp_int(value: str, default: int, lo: int, hi: int) -> int:
@@ -104,6 +117,7 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
         settings["proxy_url"] = self.query_one("#set-proxy", Input).value.strip()
         settings["graphics_preview"] = self.query_one("#set-graphics", Checkbox).value
         settings["browser_render"] = self.query_one("#set-render", Checkbox).value
+        settings["page_preview"] = self.query_one("#set-page-preview", Checkbox).value
         settings["min_image_size"] = self._clamp_int(
             self.query_one("#set-min-size", Input).value, 0, 0, 100000
         )
