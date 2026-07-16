@@ -167,7 +167,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         yield Footer()
 
     def on_mount(self) -> None:
-        self.query_one("#log", LogPanel).border_title = "Log-Ausgabe"
+        self.query_one("#log", LogPanel).border_title = " Log-Ausgabe "
         self._update_stats()
         # Fokus auf die Tabelle, NICHT auf die Suchleiste - ein fokussiertes
         # Text-Input wuerde die Buchstaben-Shortcuts aus dem Footer ausblenden.
