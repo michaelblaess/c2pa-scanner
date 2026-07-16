@@ -99,7 +99,7 @@ class FindingsTable(DataTable[Any]):
         if col_index not in self._SORT_KEYS:
             return
         if self.scanning:
-            self.app.notify("Sortierung waehrend des Scans deaktiviert.", severity="warning")
+            self.app.notify("Sortierung während des Scans deaktiviert.", severity="warning")
             return
         if col_index == self._sort_col:
             self._sort_desc = not self._sort_desc

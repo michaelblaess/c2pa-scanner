@@ -9,7 +9,8 @@ import httpx
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal
+from textual.containers import Horizontal, Vertical
+from textual.timer import Timer
 from textual.widgets import DataTable, Footer, Header
 from textual_fspicker import FileOpen, FileSave, Filters
 from textual_themes import register_all
@@ -36,6 +37,7 @@ from c2pa_scanner.widgets.findings_table import FindingsTable
 from c2pa_scanner.widgets.preview_panel import PreviewPanel
 
 _USER_AGENT = "Mozilla/5.0 (c2pa-scanner)"
+_BAR_WIDTH = 24
 
 _ABOUT_DESCRIPTION = (
     "Selbstprüf-Werkzeug für C2PA-/KI-Herkunft in Bildern.\n\n"
@@ -51,6 +53,13 @@ def _url_name(url: str) -> str:
     return path.rsplit("/", 1)[-1] or url
 
 
+def _progress_bar(done: int, total: int) -> str:
+    if total <= 0:
+        return "░" * _BAR_WIDTH
+    filled = int(_BAR_WIDTH * done / total)
+    return "█" * filled + "░" * (_BAR_WIDTH - filled)
+
+
 class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # type: ignore[misc]
     """Sitemap laden, Seiten crawlen, Bilder auf C2PA/KI pruefen, Bild vorschauen."""
 
@@ -61,19 +70,19 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         Binding("o,O", "choose_sitemap", "URL eingeben", key_display="o",
                 tooltip="Sitemap-URL eingeben (http/https)"),
         Binding("m,M", "load_sitemap_file", "Sitemap laden", key_display="m",
-                tooltip="Lokale sitemap.xml oeffnen"),
+                tooltip="Lokale sitemap.xml öffnen"),
         Binding("c,C", "scan", "Scan", key_display="c",
-                tooltip="Die aktuelle Sitemap (erneut) crawlen und Bilder pruefen"),
+                tooltip="Die aktuelle Sitemap (erneut) crawlen und Bilder prüfen"),
         Binding("h,H", "show_history", "History", key_display="h",
-                tooltip="Fruehere Sitemaps auswaehlen"),
+                tooltip="Frühere Sitemaps auswählen"),
         Binding("t,T", "make_testimage", "Testbild erzeugen", key_display="t",
                 tooltip="Ein signiertes C2PA-Testbild erzeugen und speichern"),
         Binding("l,L", "toggle_log", "Log", key_display="l",
                 tooltip="Log-Panel ein-/ausblenden"),
         Binding("s,S", "show_settings", "Settings", key_display="s",
-                tooltip="Einstellungen oeffnen"),
+                tooltip="Einstellungen öffnen (u.a. Proxy-URL)"),
         Binding("i,I", "show_about", "Info", key_display="i",
-                tooltip="Ueber c2pa-scanner"),
+                tooltip="Über c2pa-scanner"),
         Binding("q,Q", "quit", "Beenden", key_display="q", tooltip="App beenden"),
     ]
 
@@ -87,6 +96,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         theme = settings.get("theme")
         if isinstance(theme, str) and theme in self.available_themes:
             self.theme = theme
+        self._proxy = str(settings.get("proxy_url", ""))
 
         last = settings.get("last_sitemap")
         self._sitemap: str | None = start_sitemap or (
@@ -96,6 +106,10 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self._preview_cache: dict[str, bytes] = {}
         self._pages = 0
         self._scanning = False
+        self._phase = ""
+        self._prog_done = 0
+        self._prog_total = 0
+        self._progress_timer: Timer | None = None
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -112,11 +126,12 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
             id="stats",
         )
         with Horizontal(id="main"):
-            yield FindingsTable(id="results")
-            yield VerticalSplitter(target_id="results", min_size=30, id="vsplit")
+            with Vertical(id="left"):
+                yield FindingsTable(id="results")
+                yield HorizontalSplitter(target_id="results", min_size=6, id="logsplit")
+                yield LogPanel(lang="de", export_name="c2pa-scanner", id="log")
+            yield VerticalSplitter(target_id="left", min_size=40, id="vsplit")
             yield PreviewPanel(id="preview")
-        yield HorizontalSplitter(target_id="main", min_size=8, id="logsplit", classes="hidden")
-        yield LogPanel(lang="de", export_name="c2pa-scanner", id="log", classes="hidden")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -129,7 +144,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
 
     def action_scan(self) -> None:
         if self._sitemap is None:
-            self.notify("Keine Sitemap - mit 'o' eine URL eingeben oder 'h' fuer History.",
+            self.notify("Keine Sitemap - mit 'o' eine URL eingeben oder 'h' für History.",
                         severity="warning")
             return
         if self._scanning:
@@ -143,9 +158,17 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         table.scanning = True
         table.clear_findings()
         self._pages = 0
+        self._phase = "pages"
+        self._prog_done = 0
+        self._prog_total = 0
         self.query_one("#preview", PreviewPanel).show_bytes(None, "")
         self._update_stats()
         self.post_message(LogMessage.info(f"Scan: {sitemap}"))
+        self._progress_timer = self.set_interval(0.3, self._tick_progress)
+
+        if await self._proxy_gateway_detected(sitemap):
+            self._end_scan(table)
+            return
 
         try:
             await SitemapScanService().scan(
@@ -153,27 +176,73 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
                 on_pages=self._on_pages,
                 on_finding=self._on_finding,
                 on_log=self._on_log,
+                on_progress=self._on_progress,
+                proxy=self._proxy,
             )
         except Exception as exc:  # noqa: BLE001 - Fehler dem User zeigen, nicht crashen
             self.post_message(LogMessage.error(f"Scan-Fehler: {exc}"))
             self.notify(f"Scan fehlgeschlagen: {exc}", severity="error")
-            table.scanning = False
-            self._scanning = False
+            self._end_scan(table)
             return
 
-        table.scanning = False
         table.sort_now()
-        self._scanning = False
         findings = table.findings
         needs = sum(1 for f in findings if f.verdict.needs_label)
+        errors = sum(1 for f in findings if f.verdict is Verdict.ERROR)
         self._record_history(sitemap, self._pages, len(findings), needs)
+        if not findings and self._pages > 0 and not self._proxy:
+            self.post_message(
+                LogMessage.warning(
+                    "Keine Bilder gefunden - falls die Seiten hinter einem Proxy liegen, "
+                    "trage die Proxy-URL in den Einstellungen (s) ein."
+                )
+            )
         self.post_message(
-            LogMessage.success(f"Fertig: {len(findings)} Bilder, {needs} Label-pflichtig")
+            LogMessage.success(
+                f"Fertig: {len(findings)} Bilder, {needs} Label-pflichtig, {errors} Fehler"
+            )
         )
         self.notify(f"{len(findings)} Bilder, {needs} KI-Label nötig")
+        self._end_scan(table)
+
+    async def _proxy_gateway_detected(self, sitemap: str) -> bool:
+        if not sitemap.lower().startswith(("http://", "https://")):
+            return False
+        from c2pa_scanner.infrastructure.proxy_detect import probe_proxy
+
+        detection = await probe_proxy(sitemap, proxy=self._proxy)
+        if detection is None:
+            return False
+        from c2pa_scanner.screens.proxy_warning import ProxyWarningScreen
+
+        self.post_message(LogMessage.warning(f"Proxy/Gateway erkannt: {detection.host}"))
+        self.push_screen(ProxyWarningScreen(detection))
+        return True
+
+    def _end_scan(self, table: FindingsTable) -> None:
+        table.scanning = False
+        self._scanning = False
+        self._phase = ""
+        if self._progress_timer is not None:
+            self._progress_timer.stop()
+            self._progress_timer = None
+        self.sub_title = ""
+
+    def _tick_progress(self) -> None:
+        if not self._phase:
+            return
+        label = "Crawle Seiten" if self._phase == "pages" else "Prüfe Bilder"
+        bar = _progress_bar(self._prog_done, self._prog_total)
+        self.sub_title = f"{label} {bar} {self._prog_done}/{self._prog_total}"
+
+    def _on_progress(self, phase: str, done: int, total: int) -> None:
+        self._phase = phase
+        self._prog_done = done
+        self._prog_total = total
 
     def _on_pages(self, count: int) -> None:
         self._pages = count
+        self._prog_total = count
         self._update_stats()
 
     def _on_finding(self, finding: ImageFinding) -> None:
@@ -207,7 +276,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
             try:
                 async with httpx.AsyncClient(
                     verify=False, follow_redirects=True, timeout=15.0,
-                    headers={"User-Agent": _USER_AGENT},
+                    headers={"User-Agent": _USER_AGENT}, proxy=self._proxy.strip() or None,
                 ) as client:
                     response = await client.get(image_url)
                     response.raise_for_status()
@@ -301,7 +370,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self.call_from_thread(self.post_message, LogMessage.success(f"Testbild erstellt: {dest}"))
         self.call_from_thread(self.notify, f"Testbild erstellt: {dest.name}")
 
-    # --- Log / Theme / Settings / About ------------------------------------
+    # --- Log / Settings / About --------------------------------------------
 
     def action_toggle_log(self) -> None:
         self.query_one("#log", LogPanel).toggle_class("hidden")
@@ -324,6 +393,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         if new_settings is None:
             return
         self._persist(new_settings)
+        self._proxy = str(new_settings.get("proxy_url", self._proxy))
 
     def action_show_about(self) -> None:
         self.push_screen(
