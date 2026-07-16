@@ -8,7 +8,7 @@ from collections.abc import Callable
 import httpx
 
 from c2pa_scanner.domain.models import ImageFinding, Verdict
-from c2pa_scanner.infrastructure.c2pa_reader import image_size, read_bytes
+from c2pa_scanner.infrastructure.c2pa_reader import image_size, read_provenance
 from c2pa_scanner.infrastructure.sitemap import load_sitemap
 from c2pa_scanner.infrastructure.web import fetch_page_images
 from c2pa_scanner.services.classify import classify
@@ -32,11 +32,11 @@ def _failure_reason(exc: Exception) -> str:
     return type(exc).__name__
 
 
-def _probe(data: bytes, content_type: str) -> tuple[bool, str | None, int, int]:
-    """Laeuft im Thread: liest C2PA-Manifest UND Bildgroesse aus den Bytes."""
-    has_c2pa, dst = read_bytes(data, content_type)
+def _probe(data: bytes, content_type: str) -> tuple[bool, str | None, str | None, int, int]:
+    """Laeuft im Thread: liest C2PA/XMP/EXIF-Herkunft UND Bildgroesse aus den Bytes."""
+    has_c2pa, dst, generator = read_provenance(data, content_type)
     width, height = image_size(data)
-    return has_c2pa, dst, width, height
+    return has_c2pa, dst, generator, width, height
 
 
 class SitemapScanService:
@@ -137,10 +137,12 @@ class SitemapScanService:
             return ImageFinding(
                 image_url, page_url, False, None, Verdict.ERROR, _failure_reason(exc)
             )
-        has_c2pa, dst, width, height = await asyncio.to_thread(_probe, data, content_type)
+        has_c2pa, dst, generator, width, height = await asyncio.to_thread(
+            _probe, data, content_type
+        )
         if self._min_size > 0 and 0 < width < self._min_size:
             return None
         return ImageFinding(
             image_url, page_url, has_c2pa, dst, classify(dst, has_c2pa),
-            width=width, height=height,
+            width=width, height=height, generator=generator,
         )

@@ -61,7 +61,7 @@ class FindingsTable(Vertical):
     # Nur Spalten in diesem dict sind klickbar/sortierbar.
     _SORT_KEYS: dict[int, Callable[[ImageFinding], Any]] = {
         0: lambda f: _VERDICT_ORDER[f.verdict],
-        1: lambda f: (f.digital_source_type or "").lower(),
+        1: lambda f: (f.digital_source_type or f.generator or "").lower(),
         2: lambda f: _url_name(f.image_url).lower(),
         3: lambda f: f.width * f.height,
         4: lambda f: _page_path(f.page_url).lower(),
@@ -101,7 +101,7 @@ class FindingsTable(Vertical):
 
     def on_mount(self) -> None:
         table = self.query_one("#results-data", DataTable)
-        self._base_labels = ["Status", "C2PA-Herkunft", "Bild", "Größe", "Seite"]
+        self._base_labels = ["Status", "Herkunft", "Bild", "Größe", "Seite"]
         self._col_keys = list(table.add_columns(*self._base_labels))
         self._update_sort_indicator()
         self._update_count()
@@ -185,8 +185,14 @@ class FindingsTable(Vertical):
         label, style = _VERDICT_STYLE[finding.verdict]
         if finding.verdict is Verdict.ERROR and finding.error:
             herkunft = finding.error
-        else:
+        elif finding.digital_source_type:
             herkunft = _short_source_type(finding.digital_source_type)
+        elif finding.generator:
+            herkunft = finding.generator
+        elif finding.has_c2pa:
+            herkunft = "C2PA"
+        else:
+            herkunft = "-"
         size = f"{finding.width}×{finding.height}" if finding.width and finding.height else "-"
         self.query_one("#results-data", DataTable).add_row(
             Text(label, style=style),

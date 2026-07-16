@@ -8,7 +8,7 @@ from pathlib import Path
 from PIL import Image
 
 from c2pa_scanner.domain.models import Verdict
-from c2pa_scanner.infrastructure.c2pa_reader import C2paLibReader
+from c2pa_scanner.infrastructure.c2pa_reader import C2paLibReader, read_provenance
 from c2pa_scanner.infrastructure.c2pa_signer import (
     COMPOSITE_WITH_TRAINED,
     TRAINED_ALGORITHMIC_MEDIA,
@@ -25,6 +25,14 @@ class TestRoundtrip:
         assert dst is not None
         assert "trainedAlgorithmicMedia" in dst
         assert classify(dst, has_c2pa) is Verdict.AI_GENERATED
+
+    def test_provenance_returns_generator(self, tmp_path: Path) -> None:
+        dest = create_test_image(tmp_path / "ai.jpg", source_type=TRAINED_ALGORITHMIC_MEDIA)
+        has_c2pa, dst, generator = read_provenance(dest.read_bytes(), "image/jpeg")
+        assert has_c2pa
+        assert dst is not None
+        assert "trainedAlgorithmicMedia" in dst
+        assert generator == "c2pa-scanner"
 
     def test_edited_image_is_detected_as_ai_edited(self, tmp_path: Path) -> None:
         dest = create_test_image(tmp_path / "edit.jpg", source_type=COMPOSITE_WITH_TRAINED)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import dataclasses
 from datetime import datetime
@@ -79,6 +80,8 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
                 tooltip="Die aktuelle Sitemap (erneut) crawlen und Bilder prüfen"),
         Binding("e,E", "toggle_c2pa", "Nur C2PA", key_display="e",
                 tooltip="Nur Bilder mit C2PA-Manifest anzeigen / alle anzeigen"),
+        Binding("d,D", "c2pa_details", "C2PA-Details", key_display="d",
+                tooltip="Das rohe C2PA-Manifest des markierten Bildes als Dialog anzeigen"),
         Binding("h,H", "show_history", "History", key_display="h",
                 tooltip="Frühere Sitemaps auswählen"),
         Binding("slash", "focus_filter", "Filter", key_display="/", show=False,
@@ -122,6 +125,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self._progress_timer: Timer | None = None
         self._scan_start = datetime.now()  # noqa: DTZ005 - nur Dauer-Differenz
         self._attention_on = False
+        self._current_finding: ImageFinding | None = None
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -300,10 +304,11 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         )
 
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        finding = self.query_one("#results", FindingsTable).finding_for_key(event.row_key.value)
+        self._current_finding = finding
         # Waehrend des Scans keine Bilder laden (spart Bandbreite; Vorschau nach dem Scan).
         if self._scanning:
             return
-        finding = self.query_one("#results", FindingsTable).finding_for_key(event.row_key.value)
         if finding is not None:
             self._load_preview(finding.image_url, finding.page_url)
 
@@ -325,6 +330,37 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
             if data is not None:
                 self._preview_cache[image_url] = data
         panel.show_bytes(data, _url_name(image_url), page_url)
+
+    def action_c2pa_details(self) -> None:
+        finding = self._current_finding
+        if finding is None:
+            self.notify("Keine Zeile markiert.", severity="warning")
+            return
+        self._show_c2pa_details(finding.image_url, _url_name(finding.image_url))
+
+    @work(exclusive=True, group="c2pa")
+    async def _show_c2pa_details(self, image_url: str, title: str) -> None:
+        from c2pa_scanner.infrastructure.c2pa_reader import read_manifest_json
+        from c2pa_scanner.screens.c2pa_details import C2paDetailsScreen
+
+        data = self._preview_cache.get(image_url)
+        if data is None:
+            try:
+                async with httpx.AsyncClient(
+                    verify=False, follow_redirects=True, timeout=15.0,
+                    headers={"User-Agent": _USER_AGENT}, proxy=self._proxy.strip() or None,
+                ) as client:
+                    response = await client.get(image_url)
+                    response.raise_for_status()
+                    data = response.content
+            except Exception:  # noqa: BLE001 - Fehler im Dialog anzeigen
+                data = None
+            if data is not None:
+                self._preview_cache[image_url] = data
+        manifest = (
+            await asyncio.to_thread(read_manifest_json, data, "") if data is not None else None
+        )
+        self.push_screen(C2paDetailsScreen(title=title, manifest_json=manifest))
 
     def _update_stats(self) -> None:
         header = self.query_one("#stats", InfoHeader)
