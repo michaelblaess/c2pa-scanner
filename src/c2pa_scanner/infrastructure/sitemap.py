@@ -144,12 +144,15 @@ async def load_sitemap(
     source: str,
     max_nested: int = 50,
     on_log: Callable[[str], None] | None = None,
+    on_resolved: Callable[[str], None] | None = None,
 ) -> list[str]:
     """Laedt eine Sitemap und liefert die deduplizierten Seiten-URLs.
 
     Ist ``source`` eine Website-URL ohne ``.xml`` (z.B. die Startseite), wird die
     echte Sitemap zuerst automatisch gesucht. Ein Sitemap-Index wird eine Ebene
-    tief aufgeloest (bis max_nested Kinder).
+    tief aufgeloest (bis max_nested Kinder). ``on_resolved`` wird mit der
+    tatsaechlich verwendeten Sitemap-URL aufgerufen (kann von ``source``
+    abweichen, wenn die Discovery gegriffen hat).
     """
     if _is_url(source) and not is_sitemap_url(source):
         source = await discover_sitemap(client, source, on_log)
@@ -164,6 +167,9 @@ async def load_sitemap(
         source = await discover_sitemap(client, source, on_log)
         text = await _fetch_text(client, source)
         pages, nested = parse_sitemap(text)
+
+    if on_resolved is not None:
+        on_resolved(source)
 
     result = list(pages)
     for sitemap_url in nested[:max_nested]:
