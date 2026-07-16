@@ -33,8 +33,14 @@ eingebettet) und bewertet jedes Bild: KI-generiert, KI-bearbeitet, andere Herkun
 ## Verwendung
 
 ```bash
-# Ordner (rekursiv) auf C2PA-/KI-Herkunft prüfen
-c2pa-scanner scan ./bilder
+# Grafische TUI starten (Standard ohne Befehl)
+c2pa-scanner
+c2pa-scanner tui https://www.example.com/sitemap.xml
+
+# Sitemap crawlen und alle Bilder auf C2PA-/KI-Herkunft prüfen (auch nur die Domain -
+# die Sitemap wird dann automatisch gesucht)
+c2pa-scanner scan https://www.example.com/sitemap.xml
+c2pa-scanner scan ./sitemap.xml
 
 # Signiertes C2PA-Testbild erzeugen (Positiv-Testfall)
 c2pa-scanner make-testimage ./test-ki.jpg
@@ -43,10 +49,49 @@ c2pa-scanner make-testimage ./test-bearbeitet.jpg --edited
 
 ## Wie es funktioniert
 
-- **Erkennung:** die offizielle `c2pa`-Lib liest das Manifest; die `digitalSourceType`-Assertion
-  entscheidet das Verdict (`trainedAlgorithmicMedia` / `compositeWithTrainedAlgorithmicMedia` = KI).
-- **Grenzen:** Bilder ohne Manifest sind nicht erkennbar. Jedes Resize/Crop bricht die
-  C2PA-Signatur - also das Original prüfen, nicht eine verkleinerte Kopie.
+Die Erkennung ist mehrstufig und bewusst auf wenige Falsch-Positive ausgelegt:
+
+- **C2PA-Manifest** (Primärsignal): die offizielle `c2pa`-Lib liest das signierte Manifest; die
+  `digitalSourceType`-Assertion entscheidet das Verdict (`trainedAlgorithmicMedia` = KI-generiert,
+  `compositeWithTrainedAlgorithmicMedia` = KI-bearbeitet).
+- **XMP/EXIF-`digitalSourceType`** (Zweitsignal): denselben IPTC-Marker liest das Tool auch aus dem
+  XMP, wenn kein gültiges C2PA vorhanden ist - so werden Bilder erkannt, die ihre Signatur beim
+  Verkleinern verloren, das XMP aber behalten haben.
+- **Erzeugendes Tool** (Fallback): fehlt jeder `digitalSourceType`, wird der `Software`- bzw.
+  `CreatorTool`-Tag gegen eine kuratierte Liste eindeutiger Generativ-KI-Tools geprüft (Midjourney,
+  DALL-E, Stable Diffusion, Adobe Firefly, ...). Mehrdeutige Editoren wie Photoshop oder GIMP zählen
+  bewusst NICHT, um Falsch-Positive zu vermeiden.
+- **Seiten-Crawl:** aus einer Sitemap werden alle Seiten geladen und die Bild-URLs per Regex über das
+  rohe HTML extrahiert - das findet auch Bilder in Web-Component-Attributen/Shadow-DOM, nicht nur
+  klassische `<img src>`. Fehlt eine direkte Sitemap-URL, wird sie automatisch gesucht (robots.txt,
+  danach übliche Standardpfade).
+
+**Grenzen:** Bilder ganz ohne Herkunftssignal (kein C2PA, kein XMP/EXIF) sind nicht als KI erkennbar.
+Metadaten lassen sich entfernen - Screenshot, erneutes Speichern, und viele Plattformen strippen sie
+beim Upload. Ein Treffer ist ein belastbares Indiz **für** KI; das Fehlen ist **kein** Beweis dagegen.
+Jedes Verkleinern/Zuschneiden bricht die C2PA-Signatur - also möglichst das Original prüfen.
+
+### Andere Erkennungsmethoden - und warum (noch) nicht implementiert
+
+Vollständigkeitshalber die Alternativen, die es gibt, aber bewusst NICHT eingebaut sind:
+
+- **Unsichtbare Wasserzeichen** (Google SynthID, Meta, Amazon Titan): robust gegen Bearbeitung, aber
+  jedes Verfahren braucht den Detektor seines Anbieters - es gibt keinen offenen, universellen Reader.
+  SynthID ist nur über Googles eigenes Portal prüfbar, nicht als Bibliothek. **Grund: nicht
+  integrierbar.**
+- **ML-Klassifikatoren** ("ist das KI?", z.B. Hive, Sensity, Illuminarty): generatorübergreifend und
+  nach Kompression/Verkleinern unzuverlässig (hohe Falsch-Positiv- UND Falsch-Negativ-Raten), veralten
+  schnell, adversarial fragil. **Grund: für eine Kennzeichnungs-Entscheidung nicht verteidigbar** - das
+  würde die belastbare Aussage untergraben; höchstens als separat markiertes "unsicheres Indiz" denkbar,
+  das das Ergebnis nicht steuert.
+- **Forensik/Statistik** (Frequenzspektrum, Rausch-Residuen, Diffusions-Fingerprints): Forschungsgrad,
+  kein fertiges Werkzeug, gleiche Zuverlässigkeits-Vorbehalte wie ML-Klassifikatoren. **Grund:
+  Aufwand/Nutzen passt nicht.**
+- **Fingerprint-/Hash-Abgleich** gegen eine Registry bekannter KI-Bilder: funktioniert nur, wenn das
+  Bild dort registriert ist - keine allgemeine Lösung. **Grund: zu geringe Abdeckung.**
+
+Die Leitlinie: lieber wenige, belastbare Signale (Provenienz) als viele unsichere - passend zum Zweck,
+eine rechtssichere KI-Kennzeichnung nach EU AI Act Art. 50 zu unterstützen.
 
 ## Lizenz
 

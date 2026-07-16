@@ -146,6 +146,6 @@ class SitemapScanService:
         if self._min_size > 0 and 0 < width < self._min_size:
             return None
         return ImageFinding(
-            image_url, page_url, has_c2pa, dst, classify(dst, has_c2pa),
+            image_url, page_url, has_c2pa, dst, classify(dst, has_c2pa, generator),
             width=width, height=height, generator=generator,
         )
