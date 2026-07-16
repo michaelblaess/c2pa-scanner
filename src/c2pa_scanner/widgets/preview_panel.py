@@ -76,9 +76,11 @@ class PreviewPanel(Widget):
     """Zeigt eine Bildvorschau des in der Tabelle markierten Bildes."""
 
     DEFAULT_CSS = """
-    PreviewPanel { height: 1fr; padding: 0 1; }
+    PreviewPanel { height: 1fr; padding: 0 1; layout: vertical; }
     PreviewPanel #preview-title { height: 1; text-style: bold; color: $accent; }
+    PreviewPanel #preview-scroll { height: 1fr; }
     PreviewPanel .graphics-image { width: auto; height: auto; }
+    PreviewPanel #preview-page { height: auto; color: $text-muted; }
     """
 
     def __init__(self, enabled_graphics: bool = False, **kwargs: Any) -> None:
@@ -89,15 +91,17 @@ class PreviewPanel(Widget):
         self._widget_cls = _load_graphics_widget_class(self._backend)
 
     def compose(self) -> ComposeResult:
-        with VerticalScroll():
-            yield Static("Keine Auswahl", id="preview-title")
+        yield Static("Keine Auswahl", id="preview-title")
+        with VerticalScroll(id="preview-scroll"):
             if self._widget_cls is not None:
                 yield self._widget_cls(id="preview-image", classes="graphics-image")
             else:
                 yield Static("", id="preview-image")
+        yield Static("", id="preview-page", markup=True)
 
-    def show_bytes(self, data: bytes | None, title: str) -> None:
+    def show_bytes(self, data: bytes | None, title: str, page_url: str = "") -> None:
         self.query_one("#preview-title", Static).update(title or "Keine Auswahl")
+        self._update_page_link(page_url)
         if data is None:
             self._clear()
             return
@@ -112,6 +116,17 @@ class PreviewPanel(Widget):
                 self.query_one("#preview-image", Static).update(
                     _render_half_blocks(data, 60, 30)
                 )
+
+    def _update_page_link(self, page_url: str) -> None:
+        page = self.query_one("#preview-page", Static)
+        if not page_url:
+            page.update("")
+            return
+        link = getattr(self.app, "link_markup", None)
+        if callable(link):
+            page.update(f"Seite: {link(page_url, page_url)}")
+        else:
+            page.update(f"Seite: {page_url}")
 
     def _clear(self) -> None:
         if self._widget_cls is not None:

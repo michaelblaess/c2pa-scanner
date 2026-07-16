@@ -305,10 +305,10 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
             return
         finding = self.query_one("#results", FindingsTable).finding_for_key(event.row_key.value)
         if finding is not None:
-            self._load_preview(finding.image_url)
+            self._load_preview(finding.image_url, finding.page_url)
 
     @work(exclusive=True, group="preview")
-    async def _load_preview(self, image_url: str) -> None:
+    async def _load_preview(self, image_url: str, page_url: str) -> None:
         panel = self.query_one("#preview", PreviewPanel)
         data = self._preview_cache.get(image_url)
         if data is None:
@@ -324,7 +324,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
                 data = None
             if data is not None:
                 self._preview_cache[image_url] = data
-        panel.show_bytes(data, _url_name(image_url))
+        panel.show_bytes(data, _url_name(image_url), page_url)
 
     def _update_stats(self) -> None:
         header = self.query_one("#stats", InfoHeader)

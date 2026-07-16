@@ -26,7 +26,7 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
     def app_tabs(self) -> ComposeResult:
         with TabPane("Scan", id="settings-tab-scan"), VerticalScroll():
             with Horizontal(classes="settings-row"):
-                yield Label("Min. Kantenlänge (px)")
+                yield Label("Min. Bildbreite (px)")
                 yield Input(
                     value=str(self._settings.get("min_image_size", 0)),
                     placeholder="0",
@@ -34,10 +34,9 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
                     type="integer",
                 )
             yield Static(
-                "0 = aus. Sonst die Mindest-Kantenlänge in Pixel (längste Seite): kleinere "
-                "Bilder wie Icons und Thumbnails werden gar nicht erst gescannt. "
-                "Fotorealistische KI-Bilder sind i.d.R. groß - ein Wert wie 300 blendet den "
-                "Icon-Lärm aus.",
+                "0 = aus. Sonst die Mindestbreite in Pixel: schmalere Bilder wie Icons und "
+                "Thumbnails werden gar nicht erst gescannt. Fotorealistische KI-Bilder sind "
+                "i.d.R. breit - ein Wert wie 300 blendet den Icon-Lärm aus.",
                 classes="hint",
             )
         with (

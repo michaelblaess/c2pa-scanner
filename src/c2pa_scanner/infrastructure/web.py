@@ -1,11 +1,29 @@
-"""Seiten laden und die Bild-URLs (<img>) extrahieren."""
+"""Seiten laden und die Bild-URLs extrahieren.
+
+Wichtig: Viele CMS (z.B. Sitefinity mit Web-Components wie <envc-hero-section>)
+tragen die Bild-URL NICHT in <img src>, sondern in Custom-Element-Attributen
+(image-src, background, ...) oder bauen das <img> erst per JS im Shadow-DOM. Die
+URL steht aber im Server-HTML. Deshalb wird zusaetzlich zum <img>-Parser das
+gesamte HTML per Regex nach Bild-URLs durchsucht - das faengt diese Faelle ab,
+ohne einen echten Browser (Playwright) zu brauchen.
+"""
 
 from __future__ import annotations
 
+import re
+from html import unescape
 from html.parser import HTMLParser
 from urllib.parse import urldefrag, urljoin
 
 import httpx
+
+_IMG_EXT = r"(?:jpe?g|png|webp|avif|heic|heif|gif|tiff?|bmp)"
+# Absolute (https://...) oder wurzel-relative (/...) URL, die auf eine Bildendung
+# zeigt, optional mit Querystring. HTML-Entities (&amp;) werden danach dekodiert.
+_IMG_URL_RE = re.compile(
+    r"""(?:https?://[^\s"'<>()]+|/[^\s"'<>()]+)\.""" + _IMG_EXT + r"""(?:[?&][^\s"'<>()]*)?""",
+    re.IGNORECASE,
+)
 
 
 class _ImgParser(HTMLParser):
@@ -35,22 +53,29 @@ def _is_svg(url: str) -> bool:
 
 
 def extract_image_urls_from_html(html: str, base_url: str) -> list[str]:
-    """Loest alle <img>-Quellen relativ zu base_url auf (absolut, dedupliziert).
+    """Loest alle Bild-Quellen relativ zu base_url auf (absolut, dedupliziert).
 
-    SVGs werden uebersprungen - sie koennen kein C2PA-Manifest tragen.
+    Findet <img>-Quellen UND alle Bild-URLs, die sonst im HTML stehen (Attribute
+    von Web-Components, JSON, CSS). SVGs werden uebersprungen.
     """
-    parser = _ImgParser()
-    parser.feed(html)
     seen: set[str] = set()
     result: list[str] = []
+
+    def add(raw: str) -> None:
+        if not raw or raw.startswith("data:"):
+            return
+        absolute = urldefrag(urljoin(base_url, unescape(raw.strip())))[0]
+        if absolute and absolute not in seen and not _is_svg(absolute):
+            seen.add(absolute)
+            result.append(absolute)
+
+    parser = _ImgParser()
+    parser.feed(html)
     for src in parser.srcs:
-        if src.startswith("data:"):
-            continue
-        absolute = urldefrag(urljoin(base_url, src))[0]
-        if not absolute or absolute in seen or _is_svg(absolute):
-            continue
-        seen.add(absolute)
-        result.append(absolute)
+        add(src)
+    for match in _IMG_URL_RE.finditer(html):
+        add(match.group(0))
+
     return result
 
 

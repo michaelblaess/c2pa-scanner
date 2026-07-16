@@ -46,6 +46,16 @@ class TestImageExtraction:
         assert all(not u.startswith("data:") for u in urls)
         assert all(not u.lower().endswith(".svg") for u in urls)  # SVG wird uebersprungen
 
+    def test_finds_urls_in_custom_element_attributes(self) -> None:
+        # Bild-URL steckt NICHT in <img src>, sondern in einem Web-Component-Attribut
+        # (wie Sitefinity <envc-hero-section image-src=...>); HTML-Entity im Query.
+        html = (
+            '<envc-hero-section '
+            'image-src="/Media/images/hero.jpg?sfvrsn=abc&amp;w=644"></envc-hero-section>'
+        )
+        urls = extract_image_urls_from_html(html, "https://ex.com/seite")
+        assert "https://ex.com/Media/images/hero.jpg?sfvrsn=abc&w=644" in urls
+
 
 class TestReadBytes:
     def test_detects_ai(self, tmp_path: Path) -> None:
