@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import dataclasses
 from datetime import datetime
 from pathlib import Path
 
@@ -11,7 +13,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.timer import Timer
-from textual.widgets import DataTable, Footer, Header
+from textual.widgets import DataTable, Footer, Header, Input
 from textual_fspicker import FileOpen, FileSave, Filters
 from textual_themes import register_all
 from textual_widgets import (
@@ -73,8 +75,12 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
                 tooltip="Lokale sitemap.xml öffnen"),
         Binding("c,C", "scan", "Scan", key_display="c",
                 tooltip="Die aktuelle Sitemap (erneut) crawlen und Bilder prüfen"),
+        Binding("e,E", "toggle_c2pa", "Nur C2PA", key_display="e",
+                tooltip="Nur Bilder mit C2PA-Manifest anzeigen / alle anzeigen"),
         Binding("h,H", "show_history", "History", key_display="h",
                 tooltip="Frühere Sitemaps auswählen"),
+        Binding("slash", "focus_filter", "Filter", key_display="/", show=False,
+                tooltip="Filter-Eingabe fokussieren"),
         Binding("t,T", "make_testimage", "Testbild erzeugen", key_display="t",
                 tooltip="Ein signiertes C2PA-Testbild erzeugen und speichern"),
         Binding("l,L", "toggle_log", "Log", key_display="l",
@@ -111,6 +117,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self._prog_done = 0
         self._prog_total = 0
         self._progress_timer: Timer | None = None
+        self._scan_start = datetime.now()  # noqa: DTZ005 - nur Dauer-Differenz
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -156,6 +163,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
     @work(exclusive=True)
     async def _run_scan(self, sitemap: str) -> None:
         self._scanning = True
+        self._scan_start = datetime.now()  # noqa: DTZ005 - nur Dauer-Differenz
         table = self.query_one("#results", FindingsTable)
         table.scanning = True
         table.clear_findings()
@@ -206,6 +214,22 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         )
         self.notify(f"{len(findings)} Bilder, {needs} KI-Label nötig")
         self._end_scan(table)
+
+        from c2pa_scanner.screens.scan_summary import ScanSummaryScreen
+
+        c2pa = sum(1 for f in findings if f.has_c2pa)
+        duration = (datetime.now() - self._scan_start).total_seconds()  # noqa: DTZ005
+        self.push_screen(
+            ScanSummaryScreen(
+                sitemap=sitemap,
+                pages=self._pages,
+                images=len(findings),
+                c2pa=c2pa,
+                ai_label=needs,
+                errors=errors,
+                duration_s=duration,
+            )
+        )
 
     async def _proxy_gateway_detected(self, sitemap: str) -> bool:
         if not sitemap.lower().startswith(("http://", "https://")):
@@ -266,6 +290,9 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         )
 
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        # Waehrend des Scans keine Bilder laden (spart Bandbreite; Vorschau nach dem Scan).
+        if self._scanning:
+            return
         finding = self.query_one("#results", FindingsTable).finding_for_key(event.row_key.value)
         if finding is not None:
             self._load_preview(finding.image_url)
@@ -377,6 +404,25 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
     def action_toggle_log(self) -> None:
         self.query_one("#log", LogPanel).toggle_class("hidden")
         self.query_one("#logsplit", HorizontalSplitter).toggle_class("hidden")
+
+    def action_toggle_c2pa(self) -> None:
+        table = self.query_one("#results", FindingsTable)
+        new_state = not table.only_c2pa()
+        table.set_only_c2pa(new_state)
+        # Binding-Label spiegelt die naechste moegliche Aktion.
+        label = "Alle anzeigen" if new_state else "Nur C2PA"
+        for key, bindings in self._bindings.key_to_bindings.items():
+            for i, binding in enumerate(bindings):
+                if binding.action == "toggle_c2pa":
+                    self._bindings.key_to_bindings[key][i] = dataclasses.replace(
+                        binding, description=label
+                    )
+        self.refresh_bindings()
+        self.notify("Nur Bilder mit C2PA-Manifest" if new_state else "Alle Bilder")
+
+    def action_focus_filter(self) -> None:
+        with contextlib.suppress(Exception):  # Fokus ist unkritisch
+            self.query_one("#filter-bar", Input).focus()
 
     def watch_theme(self, theme: str) -> None:
         if not hasattr(self, "_settings_store"):
