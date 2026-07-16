@@ -66,11 +66,23 @@ Detection is layered and deliberately tuned for few false positives:
   common paths). For a more complete sitemap than the official one, use the companion tool
   [Sitemap-Tracker](https://github.com/michaelblaess/sitemap-tracker) and load its XML output as a
   local file.
+- **Browser rendering** (optional, off by default): when enabled, each page is additionally rendered in
+  a headless Chromium (Playwright), adding images that only appear in the (shadow) DOM after JavaScript
+  runs - as a union with the regex extraction.
 
 **Limits:** images with no provenance signal at all (no C2PA, no XMP/EXIF) cannot be flagged as AI.
 Metadata can be stripped - screenshots, re-saving, and many platforms remove it on upload. A hit is a
 solid indication **for** AI; its absence is **not** proof against it. Any resize/crop breaks the C2PA
 signature, so scan the original master where possible.
+
+### In the TUI
+
+- **Live image preview** next to the result list, with a clickable link to the source page and a dialog
+  for the raw C2PA manifest.
+- **Page preview** (optional): below the image, a screenshot of the rendered source page scrolled to the
+  image - so you can check without leaving the tool whether an AI label is shown on/near the image.
+- **Filter & sorting**, an "AI images only" toggle, **export** via right-click (JSON, JIRA table, plain
+  text) and **test-image signing** as a positive fixture.
 
 ### Other detection methods - and why they are (not yet) implemented
 
