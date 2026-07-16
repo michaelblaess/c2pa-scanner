@@ -508,18 +508,12 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         has_rows = bool(table.shown_findings())
         has_current = self._current_finding is not None
         items = [
-            ContextMenuItem("export_json", "Export JSON", icon="⭳", enabled=has_rows),
-            ContextMenuItem("export_jira", "Export JIRA-Tabelle", icon="⭳", enabled=has_rows),
-            ContextMenuItem(
-                "export_clip", "Export Zwischenablage (Text)", icon="⭳", enabled=has_rows
-            ),
+            ContextMenuItem("export_json", "Export JSON", enabled=has_rows),
+            ContextMenuItem("export_jira", "Export JIRA-Tabelle", enabled=has_rows),
+            ContextMenuItem("export_clip", "Export Zwischenablage (Text)", enabled=has_rows),
             ContextMenuItem.separator(),
-            ContextMenuItem(
-                "toggle_ai", "Alle anzeigen" if only_ai else "Nur KI-Bilder", icon="👁"
-            ),
-            ContextMenuItem(
-                "c2pa_details", "C2PA-Details anzeigen", icon="🔎", enabled=has_current
-            ),
+            ContextMenuItem("toggle_ai", "Alle anzeigen" if only_ai else "Nur KI-Bilder"),
+            ContextMenuItem("c2pa_details", "C2PA-Details anzeigen", enabled=has_current),
         ]
         self.push_screen(
             ContextMenuScreen(items, at=(event.x, event.y)),
