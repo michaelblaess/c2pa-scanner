@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from rich.text import Text
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -31,15 +30,8 @@ from c2pa_scanner.infrastructure.c2pa_reader import C2paLibReader
 from c2pa_scanner.infrastructure.image_source import iter_images
 from c2pa_scanner.infrastructure.settings import JsonSettingsStore
 from c2pa_scanner.services.classify import classify
+from c2pa_scanner.widgets.findings_table import FindingsTable
 from c2pa_scanner.widgets.preview_panel import PreviewPanel
-
-_VERDICT_STYLE: dict[Verdict, tuple[str, str]] = {
-    Verdict.AI_GENERATED: ("KI-generiert", "bold red"),
-    Verdict.AI_EDITED: ("KI-bearbeitet", "bold yellow"),
-    Verdict.C2PA_OTHER: ("C2PA (kein KI)", "cyan"),
-    Verdict.NO_C2PA: ("kein C2PA", "dim"),
-    Verdict.ERROR: ("Fehler", "bold red"),
-}
 
 _ABOUT_DESCRIPTION = (
     "Selbstprüf-Werkzeug für C2PA-/KI-Herkunft in Bildern.\n\n"
@@ -47,12 +39,6 @@ _ABOUT_DESCRIPTION = (
     "Seiten oder für Abmahnungen. Der C2PA-Scan ist nur ein Indiz, kein Rechtsgutachten.\n\n"
     "Rechtsgrundlage: EU AI Act (VO 2024/1689), Artikel 50 - gültig ab 2. August 2026."
 )
-
-
-def _short_source_type(dst: str | None) -> str:
-    if not dst:
-        return "-"
-    return dst.rstrip("/").rsplit("/", 1)[-1]
 
 
 class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # type: ignore[misc]
@@ -95,7 +81,6 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self._folder: Path | None = start_folder or (
             Path(str(last)) if isinstance(last, str) and last else None
         )
-        self._findings: list[ImageFinding] = []
         self._reader = C2paLibReader()
         self._scanning = False
 
@@ -113,7 +98,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
             id="stats",
         )
         with Horizontal(id="main"):
-            yield DataTable(id="results", cursor_type="row", zebra_stripes=True)
+            yield FindingsTable(id="results")
             yield VerticalSplitter(target_id="results", min_size=30, id="vsplit")
             yield PreviewPanel(id="preview")
         yield HorizontalSplitter(target_id="main", min_size=8, id="logsplit", classes="hidden")
@@ -121,8 +106,6 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         yield Footer()
 
     def on_mount(self) -> None:
-        table = self.query_one("#results", DataTable)
-        table.add_columns("Verdict", "digitalSourceType", "Datei")
         self._update_stats()
         if self._folder is not None:
             self.action_scan()
@@ -154,25 +137,21 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self._scanning = False
 
     def _begin_scan(self) -> None:
-        self._findings = []
-        self.query_one("#results", DataTable).clear()
+        table = self.query_one("#results", FindingsTable)
+        table.scanning = True
+        table.clear_findings()
         self.query_one("#preview", PreviewPanel).show_image(None)
         self.post_message(LogMessage.info(f"Scan: {self._folder}"))
         self._update_stats()
 
     def _add_row(self, finding: ImageFinding) -> None:
-        self._findings.append(finding)
-        idx = len(self._findings) - 1
-        label, style = _VERDICT_STYLE[finding.verdict]
-        self.query_one("#results", DataTable).add_row(
-            Text(label, style=style),
-            _short_source_type(finding.digital_source_type),
-            Path(finding.source).name,
-            key=str(idx),
-        )
+        self.query_one("#results", FindingsTable).add_finding(finding)
         self._update_stats()
 
     def _finish_scan(self, findings: list[ImageFinding]) -> None:
+        table = self.query_one("#results", FindingsTable)
+        table.scanning = False
+        table.sort_now()
         needs = sum(1 for f in findings if f.verdict.needs_label)
         self.post_message(
             LogMessage.success(f"Fertig: {len(findings)} Bilder, {needs} Label-pflichtig")
@@ -180,21 +159,16 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self.notify(f"{len(findings)} Bilder gescannt, {needs} KI-Label nötig")
 
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
-        key = event.row_key.value
-        if key is None:
-            return
-        try:
-            idx = int(key)
-        except ValueError:
-            return
-        if 0 <= idx < len(self._findings):
-            self.query_one("#preview", PreviewPanel).show_image(Path(self._findings[idx].source))
+        finding = self.query_one("#results", FindingsTable).finding_for_key(event.row_key.value)
+        if finding is not None:
+            self.query_one("#preview", PreviewPanel).show_image(Path(finding.source))
 
     def _update_stats(self) -> None:
         header = self.query_one("#stats", InfoHeader)
-        total = len(self._findings)
-        needs = sum(1 for f in self._findings if f.verdict.needs_label)
-        errors = sum(1 for f in self._findings if f.verdict is Verdict.ERROR)
+        findings = self.query_one("#results", FindingsTable).findings
+        total = len(findings)
+        needs = sum(1 for f in findings if f.verdict.needs_label)
+        errors = sum(1 for f in findings if f.verdict is Verdict.ERROR)
         header.set_value("folder", str(self._folder) if self._folder else "-")
         header.set_value("total", str(total))
         header.set_value("label", str(needs), value_style="bold red" if needs else "dim")
