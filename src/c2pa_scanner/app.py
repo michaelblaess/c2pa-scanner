@@ -15,12 +15,14 @@ from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.timer import Timer
 from textual.widget import Widget
-from textual.widgets import DataTable, Footer, Header, Input
+from textual.widgets import DataTable, Footer, Header, Input, Static
 from textual_fspicker import FileOpen, FileSave, Filters
 from textual_themes import register_all
 from textual_widgets import (
     AboutScreen,
     ClickableLinksMixin,
+    ContextMenuItem,
+    ContextMenuScreen,
     CrashGuard,
     HorizontalSplitter,
     InfoHeader,
@@ -37,7 +39,7 @@ from c2pa_scanner.domain.models import ImageFinding, Verdict
 from c2pa_scanner.infrastructure.history import HistoryEntry, HistoryStore
 from c2pa_scanner.infrastructure.settings import JsonSettingsStore
 from c2pa_scanner.services.sitemap_scan import SitemapScanService
-from c2pa_scanner.widgets.findings_table import FindingsTable
+from c2pa_scanner.widgets.findings_table import FindingsTable, ResultsDataTable
 from c2pa_scanner.widgets.preview_panel import PreviewPanel
 
 _USER_AGENT = "Mozilla/5.0 (c2pa-scanner)"
@@ -78,8 +80,8 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
                 tooltip="Lokale sitemap.xml öffnen"),
         Binding("c,C", "scan", "Scan", key_display="c",
                 tooltip="Die aktuelle Sitemap (erneut) crawlen und Bilder prüfen"),
-        Binding("e,E", "toggle_c2pa", "Nur C2PA", key_display="e",
-                tooltip="Nur Bilder mit C2PA-Manifest anzeigen / alle anzeigen"),
+        Binding("e,E", "toggle_ai", "Nur KI-Bilder", key_display="e",
+                tooltip="Nur KI-Bilder anzeigen / alle anzeigen"),
         Binding("d,D", "c2pa_details", "C2PA-Details", key_display="d",
                 tooltip="Das rohe C2PA-Manifest des markierten Bildes als Dialog anzeigen"),
         Binding("h,H", "show_history", "History", key_display="h",
@@ -128,18 +130,19 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self._scan_start = datetime.now()  # noqa: DTZ005 - nur Dauer-Differenz
         self._attention_on = False
         self._current_finding: ImageFinding | None = None
+        self._export_content = ""
 
     def compose(self) -> ComposeResult:
         yield Header()
         yield InfoHeader(
             [
-                InfoItem("sitemap", "Sitemap", "-"),
                 InfoItem("pages", "Seiten", "0"),
                 InfoItem("images", "Bilder", "0"),
-                InfoItem("label", "KI-Label", "0"),
+                InfoItem("label", "KI-Bilder", "0"),
                 InfoItem("errors", "Fehler", "0"),
             ],
-            columns=5,
+            columns=4,
+            title="Sitemap: -",
             separator="  |  ",
             id="stats",
         )
@@ -374,7 +377,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         total = len(findings)
         needs = sum(1 for f in findings if f.verdict.needs_label)
         errors = sum(1 for f in findings if f.verdict is Verdict.ERROR)
-        header.set_value("sitemap", self._display_sitemap(self._sitemap))
+        self._set_sitemap_title(header)
         header.set_value("pages", str(self._pages))
         header.set_value("images", str(total))
         header.set_value("label", str(needs), value_style="bold red" if needs else "dim")
@@ -393,7 +396,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
             return
         self._sitemap = url
         self._persist({"last_sitemap": url})
-        self.action_scan()
+        self._sitemap_loaded()
 
     def action_load_sitemap_file(self) -> None:
         self.push_screen(
@@ -412,7 +415,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
             return
         self._sitemap = str(path)
         self._persist({"last_sitemap": str(path)})
-        self.action_scan()
+        self._sitemap_loaded()
 
     def action_show_history(self) -> None:
         from c2pa_scanner.screens.history_screen import HistoryScreen
@@ -424,7 +427,22 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
             return
         self._sitemap = sitemap
         self._persist({"last_sitemap": sitemap})
-        self.action_scan()
+        self._sitemap_loaded()
+
+    def _sitemap_loaded(self) -> None:
+        # Sitemap uebernommen, aber NICHT automatisch scannen - die Footer-Taste
+        # 'c' blinkt (via _tick_attention) und der User startet selbst.
+        if self._scanning:
+            return
+        self._pages = 0
+        self._current_finding = None
+        self.query_one("#results", FindingsTable).clear_findings()
+        with contextlib.suppress(Exception):
+            self.query_one("#preview", PreviewPanel).show_bytes(None, "")
+        self._update_stats()
+        self.post_message(
+            LogMessage.info(f"Sitemap geladen: {self._sitemap} - 'c' zum Scannen")
+        )
 
     # --- Testbild -----------------------------------------------------------
 
@@ -457,20 +475,99 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self.query_one("#log", LogPanel).toggle_class("hidden")
         self.query_one("#logsplit", HorizontalSplitter).toggle_class("hidden")
 
-    def action_toggle_c2pa(self) -> None:
+    def action_toggle_ai(self) -> None:
         table = self.query_one("#results", FindingsTable)
-        new_state = not table.only_c2pa()
-        table.set_only_c2pa(new_state)
+        new_state = not table.only_ai()
+        table.set_only_ai(new_state)
         # Binding-Label spiegelt die naechste moegliche Aktion.
-        label = "Alle anzeigen" if new_state else "Nur C2PA"
+        label = "Alle anzeigen" if new_state else "Nur KI-Bilder"
         for key, bindings in self._bindings.key_to_bindings.items():
             for i, binding in enumerate(bindings):
-                if binding.action == "toggle_c2pa":
+                if binding.action == "toggle_ai":
                     self._bindings.key_to_bindings[key][i] = dataclasses.replace(
                         binding, description=label
                     )
         self.refresh_bindings()
-        self.notify("Nur Bilder mit C2PA-Manifest" if new_state else "Alle Bilder")
+        self.notify("Nur KI-Bilder" if new_state else "Alle Bilder")
+
+    # --- Kontextmenue / Export ---------------------------------------------
+
+    def on_results_data_table_right_clicked(
+        self, event: ResultsDataTable.RightClicked
+    ) -> None:
+        only_ai = self.query_one("#results", FindingsTable).only_ai()
+        items = [
+            ContextMenuItem("export_json", "Export JSON", icon="⭳"),
+            ContextMenuItem("export_jira", "Export JIRA-Tabelle", icon="⭳"),
+            ContextMenuItem("export_clip", "Export Zwischenablage (Text)", icon="⭳"),
+            ContextMenuItem.separator(),
+            ContextMenuItem(
+                "toggle_ai", "Alle anzeigen" if only_ai else "Nur KI-Bilder", icon="👁"
+            ),
+            ContextMenuItem("c2pa_details", "C2PA-Details anzeigen", icon="🔎"),
+        ]
+        self.push_screen(
+            ContextMenuScreen(items, at=(event.x, event.y)),
+            callback=self._on_context_menu,
+        )
+
+    def _on_context_menu(self, action_id: str | None) -> None:
+        actions = {
+            "export_json": self.action_export_json,
+            "export_jira": self.action_export_jira,
+            "export_clip": self.action_export_clip,
+            "toggle_ai": self.action_toggle_ai,
+            "c2pa_details": self.action_c2pa_details,
+        }
+        handler = actions.get(action_id or "")
+        if handler is not None:
+            handler()
+
+    def _shown_findings(self) -> list[ImageFinding]:
+        return self.query_one("#results", FindingsTable).shown_findings()
+
+    def action_export_json(self) -> None:
+        if not self._shown_findings():
+            self.notify("Nichts zu exportieren.", severity="warning")
+            return
+        self.push_screen(
+            FileSave(location=str(Path.cwd()), default_file="c2pa-findings.json"),
+            callback=self._on_export_json_target,
+        )
+
+    def _on_export_json_target(self, target: Path | None) -> None:
+        if target is None:
+            return
+        from c2pa_scanner.services.export import build_json
+
+        content = build_json(self._shown_findings())
+        try:
+            Path(target).write_text(content, encoding="utf-8")
+        except OSError as exc:
+            self.notify(f"Speichern fehlgeschlagen: {exc}", severity="error")
+            return
+        self.post_message(LogMessage.success(f"JSON-Export: {target}"))
+        self.notify(f"Exportiert: {Path(target).name}")
+
+    def action_export_jira(self) -> None:
+        findings = self._shown_findings()
+        if not findings:
+            self.notify("Nichts zu exportieren.", severity="warning")
+            return
+        from c2pa_scanner.services.export import build_jira
+
+        self.copy_to_clipboard(build_jira(findings))
+        self.notify(f"{len(findings)} Zeilen als JIRA-Tabelle kopiert")
+
+    def action_export_clip(self) -> None:
+        findings = self._shown_findings()
+        if not findings:
+            self.notify("Nichts zu exportieren.", severity="warning")
+            return
+        from c2pa_scanner.services.export import build_text
+
+        self.copy_to_clipboard(build_text(findings))
+        self.notify(f"{len(findings)} Zeilen als Text kopiert")
 
     def action_focus_filter(self) -> None:
         with contextlib.suppress(Exception):  # Fokus ist unkritisch
@@ -552,11 +649,21 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
     def _display_sitemap(sitemap: str | None) -> str:
         if not sitemap:
             return "-"
-        if len(sitemap) <= 48:
+        # Die Titelzeile spannt die volle Header-Breite - grosszuegiger Schwellwert.
+        if len(sitemap) <= 80:
             return sitemap
         # Zu lang -> nur den Dateinamen/letztes Segment (Pfad ODER URL).
         name = sitemap.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
         return name or sitemap
+
+    def _set_sitemap_title(self, header: InfoHeader) -> None:
+        # Sitemap steht in der vollbreiten Titelzeile (kein Spalten-Clipping);
+        # der volle Wert haengt zusaetzlich als Tooltip an der Titelzeile.
+        text = f"Sitemap: {self._display_sitemap(self._sitemap)}"
+        with contextlib.suppress(Exception):
+            title = header.query_one("#info-title", Static)
+            title.update(text)
+            title.tooltip = self._sitemap or None
 
     @staticmethod
     def _read_int(settings: dict[str, object], key: str, default: int) -> int:
