@@ -23,10 +23,34 @@ Screen {
     height: 1fr;
 }
 
+#preview-col {
+    width: 1fr;
+    height: 1fr;
+    layout: vertical;
+    border-left: solid $accent;
+}
+
 #preview {
     width: 1fr;
     height: 1fr;
-    border-left: solid $accent;
+}
+
+#preview-split {
+    height: 1;
+}
+
+#preview-split.hidden {
+    display: none;
+}
+
+#page-preview {
+    width: 1fr;
+    height: 1fr;
+    border-top: solid $accent;
+}
+
+#page-preview.hidden {
+    display: none;
 }
 
 #logsplit {
