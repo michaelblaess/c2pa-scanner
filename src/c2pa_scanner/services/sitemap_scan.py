@@ -71,7 +71,7 @@ class SitemapScanService:
             proxy=proxy.strip() or None,
         ) as client:
             on_log(f"Lade Sitemap: {source}")
-            pages = await load_sitemap(client, source)
+            pages = await load_sitemap(client, source, on_log=on_log)
             on_pages(len(pages))
             on_log(f"{len(pages)} Seiten in der Sitemap")
 
