@@ -12,12 +12,12 @@
   <meta name="twitter:card" content="summary">
   <link rel="stylesheet" href="css/precision.css">
   <style>
-    .hero-logo { display: block; margin: 0 auto 28px; filter: drop-shadow(0 10px 28px rgba(0,0,0,0.35)); }
     .disclaimer {
-      max-width: var(--max-width); margin: 0 auto 8px; padding: 16px 20px;
-      border: 1px solid var(--border); border-left: 4px solid var(--accent);
-      border-radius: var(--radius-lg); background: var(--bg-secondary); color: var(--text-secondary);
+      max-width: var(--max-width); margin: 0 auto; padding: 20px 24px;
+      border: 1px solid var(--border); border-radius: var(--radius-lg);
+      background: var(--bg-secondary); color: var(--text-secondary);
     }
+    .disclaimer strong { color: var(--text-primary); }
     .reason { color: var(--accent); font-weight: 600; }
     .lead-note { max-width: var(--max-width); margin: 0 auto; color: var(--text-tertiary); }
   </style>
@@ -45,7 +45,6 @@
 
   <!-- ═══ HERO ═══ -->
   <section class="hero">
-    <img class="hero-logo" src="icon.svg" alt="" width="104" height="104">
     <div class="hero-badge"><span class="dot"></span> Open Source TUI Tool · v0.1.0</div>
     <h1>c2pa-<span class="accent">Scanner</span></h1>
     <p class="hero-description">Prüft Website-Sitemaps auf <strong>KI-generierte Bilder</strong> anhand der C2PA- und EXIF/XMP-Herkunft &mdash; eine Hilfe für die KI-Kennzeichnung nach <strong>EU AI Act Art. 50</strong>, direkt im Terminal.</p>
