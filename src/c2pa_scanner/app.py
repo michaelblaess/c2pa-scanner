@@ -332,7 +332,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         total = len(findings)
         needs = sum(1 for f in findings if f.verdict.needs_label)
         errors = sum(1 for f in findings if f.verdict is Verdict.ERROR)
-        header.set_value("sitemap", self._sitemap or "-")
+        header.set_value("sitemap", self._display_sitemap(self._sitemap))
         header.set_value("pages", str(self._pages))
         header.set_value("images", str(total))
         header.set_value("label", str(needs), value_style="bold red" if needs else "dim")
@@ -503,6 +503,16 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         )
 
     # --- Helpers ------------------------------------------------------------
+
+    @staticmethod
+    def _display_sitemap(sitemap: str | None) -> str:
+        if not sitemap:
+            return "-"
+        if len(sitemap) <= 48:
+            return sitemap
+        # Zu lang -> nur den Dateinamen/letztes Segment (Pfad ODER URL).
+        name = sitemap.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
+        return name or sitemap
 
     @staticmethod
     def _read_min_size(settings: dict[str, object]) -> int:
