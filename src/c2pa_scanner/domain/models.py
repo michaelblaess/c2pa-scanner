@@ -33,3 +33,4 @@ class ImageFinding:
     error: str | None = None
     width: int = 0
     height: int = 0
+    generator: str | None = None
