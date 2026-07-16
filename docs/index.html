@@ -1,255 +1,255 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="de" data-theme="dark">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>c2pa-scanner</title>
-<style>
-  :root {
-    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --accent: #d2a52a;
-    --card: #161b22; --border: #30363d; --code: #1c2430; --ok: #3fb950; --warn: #d29922;
-  }
-  @media (prefers-color-scheme: light) {
-    :root {
-      --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --accent: #9a7d1a;
-      --card: #f6f8fa; --border: #d1d9e0; --code: #f0f3f6; --ok: #1a7f37; --warn: #9a6700;
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>c2pa-scanner — KI-Bilder in Website-Sitemaps erkennen (C2PA / EU AI Act)</title>
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <meta property="og:title" content="c2pa-scanner">
+  <meta property="og:description" content="Prüft Website-Sitemaps auf KI-generierte Bilder anhand der C2PA- und EXIF/XMP-Herkunft - eine Hilfe für die KI-Kennzeichnung nach EU AI Act Art. 50.">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
+  <link rel="stylesheet" href="css/precision.css">
+  <style>
+    .hero-logo { display: block; margin: 0 auto 28px; filter: drop-shadow(0 10px 28px rgba(0,0,0,0.35)); }
+    .disclaimer {
+      max-width: var(--max-width); margin: 0 auto 8px; padding: 16px 20px;
+      border: 1px solid var(--border); border-left: 4px solid var(--accent);
+      border-radius: var(--radius-lg); background: var(--bg-secondary); color: var(--text-secondary);
     }
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--bg); color: var(--fg);
-    font: 16px/1.6 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  }
-  .wrap { max-width: 820px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
-  h1 { font-size: 2rem; margin: 0 0 .25rem; }
-  h2 { font-size: 1.35rem; margin: 2.5rem 0 .75rem; border-bottom: 1px solid var(--border); padding-bottom: .3rem; }
-  h3 { font-size: 1.1rem; margin: 1.75rem 0 .5rem; }
-  a { color: var(--accent); }
-  code, pre { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
-  code { background: var(--code); padding: .1rem .35rem; border-radius: 4px; font-size: .88em; }
-  pre { background: var(--code); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; }
-  pre code { background: none; padding: 0; }
-  .switch { text-align: center; margin: 0 0 1.5rem; }
-  .switch button {
-    background: none; border: 1px solid var(--border); color: var(--fg); cursor: pointer;
-    padding: .3rem .7rem; border-radius: 6px; font: inherit; display: inline-flex; align-items: center; gap: .4rem;
-  }
-  .switch button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
-  .switch img { height: 13px; }
-  .lead { color: var(--muted); font-size: 1.05rem; }
-  .note {
-    background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--accent);
-    border-radius: 8px; padding: .9rem 1.1rem; margin: 1.25rem 0;
-  }
-  ul { padding-left: 1.25rem; }
-  li { margin: .35rem 0; }
-  .reason { color: var(--warn); font-weight: 600; }
-  footer { margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .9rem; }
-  [hidden] { display: none !important; }
-</style>
+    .reason { color: var(--accent); font-weight: 600; }
+    .lead-note { max-width: var(--max-width); margin: 0 auto; color: var(--text-tertiary); }
+  </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>c2pa-scanner</h1>
 
-  <div class="switch">
-    <button id="btn-en" aria-pressed="true"><img src="flags/gb.svg" alt=""> English</button>
-    <button id="btn-de" aria-pressed="false"><img src="flags/de.svg" alt=""> Deutsch</button>
+  <!-- ═══ HEADER ═══ -->
+  <header class="header">
+    <div class="header-left">
+      <img src="https://michaelblaess.de/wp-content/uploads/2021/02/logo-micha5.png" alt="Michael Blaess" class="header-logo">
+      <div class="header-divider"></div>
+      <span class="header-repo">c2pa-scanner</span>
+    </div>
+    <div class="header-right">
+      <a href="#detection" class="header-link">Erkennung</a>
+      <a href="#cli" class="header-link">CLI</a>
+      <a href="#install" class="header-link">Installation</a>
+      <a href="https://github.com/michaelblaess/c2pa-scanner" class="header-link">GitHub</a>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="Theme wechseln">
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ═══ HERO ═══ -->
+  <section class="hero">
+    <img class="hero-logo" src="icon.svg" alt="" width="104" height="104">
+    <div class="hero-badge"><span class="dot"></span> Open Source TUI Tool · v0.1.0</div>
+    <h1>c2pa-<span class="accent">Scanner</span></h1>
+    <p class="hero-description">Prüft Website-Sitemaps auf <strong>KI-generierte Bilder</strong> anhand der C2PA- und EXIF/XMP-Herkunft &mdash; eine Hilfe für die KI-Kennzeichnung nach <strong>EU AI Act Art. 50</strong>, direkt im Terminal.</p>
+    <div class="hero-actions">
+      <a href="https://github.com/michaelblaess/c2pa-scanner" class="btn btn-primary">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub Repository
+      </a>
+      <a href="#install" class="btn btn-secondary">Installation</a>
+    </div>
+  </section>
+
+  <!-- ═══ DISCLAIMER ═══ -->
+  <div class="disclaimer">
+    <strong>Wofür dieses Tool gedacht ist &mdash; und wofür nicht.</strong> Es prüft <em>Deine eigenen</em>
+    Bilder und Seiten auf die KI-Kennzeichnung nach dem EU AI Act und macht sie rechtssicher &mdash; nicht mehr
+    und nicht weniger. Es ist <strong>ausdrücklich NICHT</strong> dazu gedacht, fremde Seiten zu durchleuchten
+    oder Abmahnungen zu füttern. Ein C2PA-Treffer ist ein Indiz, kein Rechtsgutachten.
   </div>
 
-  <!-- ================= ENGLISH ================= -->
-  <div id="lang-en">
-    <p class="lead">Scan website sitemaps for AI-generated images via C2PA and EXIF/XMP provenance -
-    an EU AI Act Art. 50 labeling helper.</p>
+  <div class="divider"><div class="divider-line"></div></div>
 
-    <div class="note">
-      <strong>What this tool is for - and what it is not.</strong> It checks <em>your own</em> images
-      and pages for AI labeling under the EU AI Act and makes them compliant - nothing more. It is
-      explicitly NOT meant to scan third-party websites or to feed takedown notices. A C2PA hit is an
-      indication, not a legal opinion.
+  <!-- ═══ ERKENNUNG ═══ -->
+  <section class="section" id="detection">
+    <div class="section-label">Erkennung</div>
+    <h2 class="section-title">Wie es KI-Bilder findet</h2>
+    <p class="section-description">Mehrstufig und bewusst auf wenige Falsch-Positive ausgelegt.</p>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon">🔏</div>
+        <h3>C2PA-Manifest</h3>
+        <p>Primärsignal: die offizielle <code>c2pa</code>-Lib liest das signierte Manifest; die <code>digitalSourceType</code>-Assertion entscheidet das Verdict (<code>trainedAlgorithmicMedia</code> = KI-generiert, <code>compositeWithTrainedAlgorithmicMedia</code> = KI-bearbeitet).</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🧬</div>
+        <h3>XMP / EXIF</h3>
+        <p>Denselben IPTC-Marker liest das Tool auch aus dem XMP, wenn kein gültiges C2PA vorhanden ist &mdash; so werden Bilder erkannt, die ihre Signatur beim Verkleinern verloren, das XMP aber behalten haben.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🏷️</div>
+        <h3>Generator-Tool</h3>
+        <p>Fehlt jeder <code>digitalSourceType</code>, wird der <code>Software</code>- / <code>CreatorTool</code>-Tag gegen eine kuratierte Liste eindeutiger Generativ-KI-Tools geprüft (Midjourney, DALL-E, Stable Diffusion, Firefly &hellip;). Mehrdeutige Editoren wie Photoshop oder GIMP zählen bewusst NICHT.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🕸️</div>
+        <h3>Seiten-Crawl &amp; Shadow-DOM</h3>
+        <p>Aus einer Sitemap werden alle Seiten geladen und die Bild-URLs per Regex über das rohe HTML extrahiert &mdash; das findet auch Bilder in Web-Component-Attributen und declarative Shadow-DOM, nicht nur klassische <code>&lt;img src&gt;</code>.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🧭</div>
+        <h3>Sitemap-Auto-Discovery</h3>
+        <p>Fehlt eine direkte Sitemap-URL, wird sie automatisch gesucht (robots.txt, dann übliche Standardpfade). Vollständigere Sitemaps liefert das Schwester-Tool <a href="https://github.com/michaelblaess/sitemap-tracker" style="color:var(--accent)">Sitemap-Tracker</a>.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🎭</div>
+        <h3>Browser-Rendering (optional)</h3>
+        <p>Zuschaltbar: jede Seite wird zusätzlich in einem headless Chromium (Playwright) gerendert, um auch erst per JavaScript ins (Shadow-)DOM geladene Bilder zu finden &mdash; als Ergänzung zur Regex-Extraktion (Union).</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🖼️</div>
+        <h3>Live-Vorschau</h3>
+        <p>Rechts neben der Trefferliste eine Bildvorschau (Kitty-Grafik/Sixel mit Half-Block-Fallback), plus klickbarer Link zur Fundseite und ein Dialog mit dem rohen C2PA-Manifest.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📋</div>
+        <h3>Export</h3>
+        <p>Rechtsklick-Kontextmenü auf der Tabelle: Export als JSON, JIRA-Tabelle oder Klartext &mdash; in die Zwischenablage oder als Datei. Filter auf &bdquo;Nur KI-Bilder&ldquo;.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🧪</div>
+        <h3>Testbild-Signierung</h3>
+        <p>Erzeugt ein echtes, C2PA-signiertes Testbild (KI-generiert oder KI-bearbeitet) als Positiv-Testfall &mdash; zum Prüfen der eigenen Pipeline.</p>
+      </div>
     </div>
 
-    <h2>How detection works</h2>
-    <p>Detection is layered and deliberately tuned for few false positives:</p>
-    <ul>
-      <li><strong>C2PA manifest</strong> (primary signal): the official <code>c2pa</code> library reads
-      the signed manifest; the <code>digitalSourceType</code> assertion decides the verdict
-      (<code>trainedAlgorithmicMedia</code> = AI-generated,
-      <code>compositeWithTrainedAlgorithmicMedia</code> = AI-edited).</li>
-      <li><strong>XMP/EXIF <code>digitalSourceType</code></strong> (secondary signal): the same IPTC
-      marker is also read from XMP when there is no valid C2PA - this catches images that lost their
-      signature on resize but kept the XMP.</li>
-      <li><strong>Generating tool</strong> (fallback): if there is no <code>digitalSourceType</code> at
-      all, the <code>Software</code> / <code>CreatorTool</code> tag is matched against a curated list of
-      unambiguous generative-AI tools (Midjourney, DALL-E, Stable Diffusion, Adobe Firefly, ...).
-      Ambiguous editors like Photoshop or GIMP are deliberately NOT on the list.</li>
-      <li><strong>Page crawl</strong>: all pages from a sitemap are fetched and image URLs extracted via
-      regex over the raw HTML - this also finds images in web-component attributes / shadow DOM, not just
-      classic <code>&lt;img src&gt;</code>. If no direct sitemap URL is given, it is discovered
-      automatically (robots.txt, then common paths). For a more complete sitemap than the official one,
-      use the companion tool <a href="https://github.com/michaelblaess/sitemap-tracker">Sitemap-Tracker</a>
-      and load its XML output as a local file.</li>
-    </ul>
+    <p class="lead-note" style="margin-top:24px">
+      <strong>Grenzen:</strong> Bilder ganz ohne Herkunftssignal (kein C2PA, kein XMP/EXIF) sind nicht als KI
+      erkennbar. Metadaten lassen sich entfernen (Screenshot, erneutes Speichern, viele Plattformen strippen
+      sie beim Upload). Ein Treffer ist ein belastbares Indiz <strong>für</strong> KI; das Fehlen ist
+      <strong>kein</strong> Beweis dagegen &mdash; das Tool sieht nur, was die signierende Software eingetragen hat.
+    </p>
+  </section>
 
-    <h3>Verdict categories</h3>
-    <ul>
-      <li><strong>AI-generated</strong> - image created entirely by AI.</li>
-      <li><strong>AI-edited</strong> - real material combined or altered with AI (generative fill,
-      composite).</li>
-      <li><strong>C2PA (no AI)</strong> - signed provenance present, but no AI marker (e.g. a camera).</li>
-      <li><strong>no C2PA</strong> - no provenance data found in the image.</li>
-    </ul>
-    <p>AI-generated and AI-edited both require labeling. A hit is a solid indication <strong>for</strong>
-    AI; its absence is <strong>not</strong> proof against it - metadata can be stripped, and the tool only
-    sees what the signing software recorded.</p>
+  <div class="divider"><div class="divider-line"></div></div>
 
-    <h2>Other detection methods - and why they are (not yet) implemented</h2>
-    <ul>
-      <li><strong>Invisible watermarks</strong> (Google SynthID, Meta, Amazon Titan): robust against
-      edits, but each scheme needs its vendor's own detector - there is no open, universal reader. SynthID
-      can only be checked via Google's own portal, not as a library.
-      <span class="reason">Reason: not integrable.</span></li>
-      <li><strong>ML classifiers</strong> ("is this AI?", e.g. Hive, Sensity, Illuminarty): unreliable
-      across generators and after compression/resize (high false-positive AND false-negative rates), age
-      quickly, adversarially fragile.
-      <span class="reason">Reason: not defensible for a labeling decision</span> - it would undermine the
-      solid verdict; at most a separately flagged "uncertain hint" that does not drive the result.</li>
-      <li><strong>Forensics/statistics</strong> (frequency spectrum, noise residuals, diffusion
-      fingerprints): research-grade, no turnkey tool, same reliability caveats as ML classifiers.
-      <span class="reason">Reason: effort vs. value does not add up.</span></li>
-      <li><strong>Fingerprint/hash matching</strong> against a registry of known AI images: only works if
-      the image is registered there - not a general solution.
-      <span class="reason">Reason: coverage too low.</span></li>
-    </ul>
-    <p>The guiding principle: prefer a few solid signals (provenance) over many uncertain ones - fitting
-    the purpose of supporting compliant AI labeling under EU AI Act Art. 50.</p>
-
-    <h2>Usage</h2>
-<pre><code># Launch the graphical TUI (default when no command is given)
-c2pa-scanner
-c2pa-scanner tui https://www.example.com/sitemap.xml
-
-# Crawl a sitemap and check every image (a bare domain works too -
-# the sitemap is then discovered automatically)
-c2pa-scanner scan https://www.example.com/sitemap.xml
-c2pa-scanner scan ./sitemap.xml
-
-# Create a signed C2PA test image (positive test fixture)
-c2pa-scanner make-testimage ./test-ai.jpg
-c2pa-scanner make-testimage ./test-edited.jpg --edited</code></pre>
-
-    <p>Legal basis: EU AI Act (Regulation 2024/1689), Article 50 - applicable from 2 August 2026.
-    <a href="https://eur-lex.europa.eu/eli/reg/2024/1689/oj">Read the text</a>.</p>
-  </div>
-
-  <!-- ================= DEUTSCH ================= -->
-  <div id="lang-de" hidden>
-    <p class="lead">Prüft Website-Sitemaps auf KI-generierte Bilder anhand der C2PA- und
-    EXIF/XMP-Herkunft - eine Hilfe für die KI-Kennzeichnung nach EU AI Act Art. 50.</p>
-
-    <div class="note">
-      <strong>Wofür dieses Tool gedacht ist - und wofür nicht.</strong> Es prüft <em>Deine eigenen</em>
-      Bilder und Seiten auf die KI-Kennzeichnung nach dem EU AI Act und macht sie rechtssicher - nicht
-      mehr und nicht weniger. Es ist ausdrücklich NICHT dazu gedacht, fremde Seiten zu durchleuchten oder
-      Abmahnungen zu füttern. Ein C2PA-Treffer ist ein Indiz, kein Rechtsgutachten.
+  <!-- ═══ ANDERE METHODEN ═══ -->
+  <section class="section" id="alternatives">
+    <div class="section-label">Abgrenzung</div>
+    <h2 class="section-title">Andere Erkennungsmethoden &mdash; und warum nicht implementiert</h2>
+    <p class="section-description">Vollständigkeitshalber: die Alternativen, die es gibt, aber bewusst NICHT eingebaut sind.</p>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon">💧</div>
+        <h3>Unsichtbare Wasserzeichen</h3>
+        <p>Google SynthID, Meta, Amazon Titan: robust gegen Bearbeitung, aber jedes Verfahren braucht den Detektor seines Anbieters &mdash; kein offener, universeller Reader. SynthID ist nur über Googles Portal prüfbar. <span class="reason">Grund: nicht integrierbar.</span></p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🤖</div>
+        <h3>ML-Klassifikatoren</h3>
+        <p>&bdquo;Ist das KI?&ldquo; (Hive, Sensity, Illuminarty): generatorübergreifend und nach Kompression/Verkleinern unzuverlässig, veralten schnell, adversarial fragil. <span class="reason">Grund: für eine Kennzeichnungs-Entscheidung nicht verteidigbar.</span></p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔬</div>
+        <h3>Forensik / Statistik</h3>
+        <p>Frequenzspektrum, Rausch-Residuen, Diffusions-Fingerprints: Forschungsgrad, kein fertiges Werkzeug, gleiche Zuverlässigkeits-Vorbehalte wie ML-Klassifikatoren. <span class="reason">Grund: Aufwand/Nutzen passt nicht.</span></p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🧩</div>
+        <h3>Fingerprint / Hash-Abgleich</h3>
+        <p>Gegen eine Registry bekannter KI-Bilder: funktioniert nur, wenn das Bild dort registriert ist &mdash; keine allgemeine Lösung. <span class="reason">Grund: zu geringe Abdeckung.</span></p>
+      </div>
     </div>
+    <p class="lead-note" style="margin-top:24px">Die Leitlinie: lieber wenige, belastbare Signale (Provenienz) als viele unsichere &mdash; passend zum Zweck, eine rechtssichere KI-Kennzeichnung nach EU AI Act Art. 50 zu unterstützen.</p>
+  </section>
 
-    <h2>Wie die Erkennung funktioniert</h2>
-    <p>Die Erkennung ist mehrstufig und bewusst auf wenige Falsch-Positive ausgelegt:</p>
-    <ul>
-      <li><strong>C2PA-Manifest</strong> (Primärsignal): die offizielle <code>c2pa</code>-Lib liest das
-      signierte Manifest; die <code>digitalSourceType</code>-Assertion entscheidet das Verdict
-      (<code>trainedAlgorithmicMedia</code> = KI-generiert,
-      <code>compositeWithTrainedAlgorithmicMedia</code> = KI-bearbeitet).</li>
-      <li><strong>XMP/EXIF-<code>digitalSourceType</code></strong> (Zweitsignal): denselben IPTC-Marker
-      liest das Tool auch aus dem XMP, wenn kein gültiges C2PA vorhanden ist - so werden Bilder erkannt,
-      die ihre Signatur beim Verkleinern verloren, das XMP aber behalten haben.</li>
-      <li><strong>Erzeugendes Tool</strong> (Fallback): fehlt jeder <code>digitalSourceType</code>, wird
-      der <code>Software</code>- bzw. <code>CreatorTool</code>-Tag gegen eine kuratierte Liste eindeutiger
-      Generativ-KI-Tools geprüft (Midjourney, DALL-E, Stable Diffusion, Adobe Firefly, ...). Mehrdeutige
-      Editoren wie Photoshop oder GIMP zählen bewusst NICHT.</li>
-      <li><strong>Seiten-Crawl</strong>: aus einer Sitemap werden alle Seiten geladen und die Bild-URLs
-      per Regex über das rohe HTML extrahiert - das findet auch Bilder in
-      Web-Component-Attributen/Shadow-DOM, nicht nur klassische <code>&lt;img src&gt;</code>. Fehlt eine
-      direkte Sitemap-URL, wird sie automatisch gesucht (robots.txt, danach übliche Standardpfade). Eine
-      vollständigere Sitemap als die offizielle liefert das Schwester-Tool
-      <a href="https://github.com/michaelblaess/sitemap-tracker">Sitemap-Tracker</a> - dessen XML-Ausgabe
-      lädst Du einfach als lokale Datei.</li>
-    </ul>
+  <div class="divider"><div class="divider-line"></div></div>
 
-    <h3>Status-Kategorien</h3>
-    <ul>
-      <li><strong>KI-generiert</strong> - Bild vollständig von einer KI erzeugt.</li>
-      <li><strong>KI-bearbeitet</strong> - echtes Material mit KI kombiniert oder verändert (generativer
-      Fill, Composite).</li>
-      <li><strong>C2PA (kein KI)</strong> - Herkunft signiert, aber ohne KI-Marker (z.B. Kamera).</li>
-      <li><strong>kein C2PA</strong> - keine Herkunftsdaten im Bild gefunden.</li>
-    </ul>
-    <p>KI-generiert und KI-bearbeitet sind beide kennzeichnungspflichtig. Ein Treffer ist ein belastbares
-    Indiz <strong>für</strong> KI; das Fehlen ist <strong>kein</strong> Beweis dagegen - Metadaten lassen
-    sich entfernen, und das Tool sieht nur, was die signierende Software eingetragen hat.</p>
+  <!-- ═══ TECH STACK ═══ -->
+  <section class="section" id="stack">
+    <div class="section-label">Tech Stack</div>
+    <h2 class="section-title">Gebaut mit</h2>
+    <p class="section-description">Die Technologien hinter dem Projekt.</p>
+    <div class="tech-stack">
+      <div class="tech-badge">Python 3.12</div>
+      <div class="tech-badge">Textual</div>
+      <div class="tech-badge">c2pa-python</div>
+      <div class="tech-badge">Playwright</div>
+      <div class="tech-badge">httpx</div>
+      <div class="tech-badge">Pillow</div>
+    </div>
+  </section>
 
-    <h2>Andere Erkennungsmethoden - und warum (noch) nicht implementiert</h2>
-    <ul>
-      <li><strong>Unsichtbare Wasserzeichen</strong> (Google SynthID, Meta, Amazon Titan): robust gegen
-      Bearbeitung, aber jedes Verfahren braucht den Detektor seines Anbieters - es gibt keinen offenen,
-      universellen Reader. SynthID ist nur über Googles eigenes Portal prüfbar, nicht als Bibliothek.
-      <span class="reason">Grund: nicht integrierbar.</span></li>
-      <li><strong>ML-Klassifikatoren</strong> ("ist das KI?", z.B. Hive, Sensity, Illuminarty):
-      generatorübergreifend und nach Kompression/Verkleinern unzuverlässig (hohe Falsch-Positiv- UND
-      Falsch-Negativ-Raten), veralten schnell, adversarial fragil.
-      <span class="reason">Grund: für eine Kennzeichnungs-Entscheidung nicht verteidigbar</span> - das
-      würde die belastbare Aussage untergraben; höchstens als separat markiertes "unsicheres Indiz"
-      denkbar, das das Ergebnis nicht steuert.</li>
-      <li><strong>Forensik/Statistik</strong> (Frequenzspektrum, Rausch-Residuen,
-      Diffusions-Fingerprints): Forschungsgrad, kein fertiges Werkzeug, gleiche Zuverlässigkeits-Vorbehalte
-      wie ML-Klassifikatoren. <span class="reason">Grund: Aufwand/Nutzen passt nicht.</span></li>
-      <li><strong>Fingerprint-/Hash-Abgleich</strong> gegen eine Registry bekannter KI-Bilder:
-      funktioniert nur, wenn das Bild dort registriert ist - keine allgemeine Lösung.
-      <span class="reason">Grund: zu geringe Abdeckung.</span></li>
-    </ul>
-    <p>Die Leitlinie: lieber wenige, belastbare Signale (Provenienz) als viele unsichere - passend zum
-    Zweck, eine rechtssichere KI-Kennzeichnung nach EU AI Act Art. 50 zu unterstützen.</p>
+  <div class="divider"><div class="divider-line"></div></div>
 
-    <h2>Verwendung</h2>
-<pre><code># Grafische TUI starten (Standard ohne Befehl)
-c2pa-scanner
-c2pa-scanner tui https://www.example.com/sitemap.xml
+  <!-- ═══ CLI ═══ -->
+  <section class="section" id="cli">
+    <div class="section-label">CLI</div>
+    <h2 class="section-title">Befehle</h2>
+    <p class="section-description">Ohne Befehl startet die grafische TUI.</p>
+    <div class="cli-table-wrap">
+      <table class="cli-table">
+        <thead>
+          <tr><th>Befehl</th><th>Beschreibung</th><th>Default</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>c2pa-scanner</code></td><td>Grafische TUI starten</td><td class="default">—</td></tr>
+          <tr><td><code>tui [sitemap]</code></td><td>TUI mit optionaler Start-Sitemap</td><td class="default">—</td></tr>
+          <tr><td><code>scan &lt;sitemap&gt;</code></td><td>Sitemap crawlen und Bilder prüfen (URL, .xml oder Domain)</td><td class="default">—</td></tr>
+          <tr><td><code>scan --render</code></td><td>Seiten mit Playwright rendern (JS-/Shadow-DOM-Bilder)</td><td class="default">aus</td></tr>
+          <tr><td><code>make-testimage &lt;out&gt;</code></td><td>Signiertes C2PA-Testbild erzeugen</td><td class="default">—</td></tr>
+          <tr><td><code>make-testimage --edited</code></td><td>KI-bearbeitet statt KI-generiert</td><td class="default">aus</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
 
-# Sitemap crawlen und alle Bilder pruefen (auch nur die Domain -
-# die Sitemap wird dann automatisch gesucht)
-c2pa-scanner scan https://www.example.com/sitemap.xml
-c2pa-scanner scan ./sitemap.xml
+  <div class="divider"><div class="divider-line"></div></div>
 
-# Signiertes C2PA-Testbild erzeugen (Positiv-Testfall)
-c2pa-scanner make-testimage ./test-ki.jpg
-c2pa-scanner make-testimage ./test-bearbeitet.jpg --edited</code></pre>
+  <!-- ═══ INSTALLATION ═══ -->
+  <section class="section" id="install">
+    <div class="section-label">Installation</div>
+    <h2 class="section-title">Schnellstart</h2>
+    <p class="section-description">Fertige Binaries pro Plattform oder aus dem Quellcode.</p>
+    <div class="install-grid">
+      <div class="install-card">
+        <h4>Fertige Binaries</h4>
+        <div class="install-cmd">github.com/michaelblaess/c2pa-scanner/releases</div>
+      </div>
+      <div class="install-card">
+        <h4>Aus dem Quellcode (uv)</h4>
+        <div class="install-cmd">git clone https://github.com/michaelblaess/c2pa-scanner &amp;&amp; cd c2pa-scanner &amp;&amp; ./bootstrap.sh</div>
+      </div>
+    </div>
+    <div class="platforms">
+      <div class="platform">
+        <svg viewBox="0 0 24 24"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+        Windows
+      </div>
+      <div class="platform">
+        <svg viewBox="0 0 24 24"><path d="M12.504 0c-.155 0-.311.001-.465.003-.788.01-1.552.076-2.189.217-.636.141-1.147.365-1.541.672-.395.307-.674.697-.838 1.161-.164.464-.207.993-.131 1.572.076.578.27 1.195.578 1.837.308.641.728 1.3 1.249 1.958-.275.415-.506.86-.677 1.324-.17.463-.28.946-.312 1.434-.032.488.015.97.146 1.434.131.463.346.902.645 1.303-.7.485-1.261 1.049-1.665 1.666-.404.617-.651 1.285-.735 1.976-.084.691-.003 1.389.241 2.065.245.676.649 1.313 1.201 1.879-.326.614-.498 1.26-.507 1.912-.009.651.148 1.296.47 1.898.323.603.806 1.14 1.441 1.577.635.437 1.412.766 2.306.963.894.197 1.89.26 2.952.177 1.062-.083 2.076-.313 3.006-.684.93-.371 1.77-.886 2.486-1.523.715-.637 1.295-1.402 1.709-2.264.207-.43.371-.882.491-1.349.12-.466.194-.947.22-1.435.027-.488.005-.977-.067-1.461-.073-.484-.197-.957-.373-1.41.533-.456.957-.97 1.265-1.527.308-.557.498-1.157.562-1.783.064-.626-.001-1.266-.192-1.9-.191-.634-.509-1.245-.95-1.806.252-.64.387-1.312.398-1.995.012-.683-.101-1.363-.336-2.017z"/></svg>
+        Linux
+      </div>
+      <div class="platform">
+        <svg viewBox="0 0 24 24"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+        macOS
+      </div>
+    </div>
+    <p class="lead-note" style="margin-top:24px">Rechtsgrundlage: EU AI Act (VO 2024/1689), Artikel 50 &mdash; gültig ab 2. August 2026. <a href="https://eur-lex.europa.eu/eli/reg/2024/1689/oj" style="color:var(--accent)">Zum Gesetzestext</a>.</p>
+  </section>
 
-    <p>Rechtsgrundlage: EU AI Act (VO 2024/1689), Artikel 50 - gültig ab 2. August 2026.
-    <a href="https://eur-lex.europa.eu/eli/reg/2024/1689/oj">Zum Gesetzestext</a>.</p>
-  </div>
+  <div class="divider"><div class="divider-line"></div></div>
 
-  <footer>
-    <a href="https://github.com/michaelblaess/c2pa-scanner">GitHub</a> &middot; Apache-2.0 &middot;
-    Michael Blaess
+  <!-- ═══ FOOTER ═══ -->
+  <footer class="footer">
+    <div class="footer-left">
+      <img src="https://michaelblaess.de/wp-content/uploads/2021/02/logo-micha5.png" alt="" class="footer-logo">
+      <span>Made by Michael Blaess · Apache License 2.0</span>
+    </div>
+    <div class="footer-links">
+      <a href="https://github.com/michaelblaess/c2pa-scanner">GitHub</a>
+      <a href="https://michaelblaess.de">Website</a>
+    </div>
   </footer>
-</div>
 
-<script>
-  (function () {
-    var en = document.getElementById("lang-en"), de = document.getElementById("lang-de");
-    var bEn = document.getElementById("btn-en"), bDe = document.getElementById("btn-de");
-    function show(lang) {
-      var isDe = lang === "de";
-      de.hidden = !isDe; en.hidden = isDe;
-      bDe.setAttribute("aria-pressed", String(isDe));
-      bEn.setAttribute("aria-pressed", String(!isDe));
-      document.documentElement.lang = isDe ? "de" : "en";
-    }
-    bEn.addEventListener("click", function () { show("en"); });
-    bDe.addEventListener("click", function () { show("de"); });
-    if ((navigator.language || "").toLowerCase().indexOf("de") === 0) { show("de"); }
-  })();
-</script>
+  <script src="js/theme.js"></script>
 </body>
 </html>
