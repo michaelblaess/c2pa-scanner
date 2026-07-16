@@ -7,17 +7,16 @@
 
 ---
 
-Ein Selbstprüf-Werkzeug, das den **C2PA-Herkunftsnachweis** in Bildern erkennt und die
-**KI-generierten** herausfiltert - damit du sie nach dem EU AI Act (Art. 50) kennzeichnen kannst.
+Erkennt den **C2PA-Herkunftsnachweis** in Bildern und filtert die **KI-generierten**
+heraus - damit du sie nach dem EU AI Act (Art. 50) kennzeichnen kannst.
 
 Es liest den `digitalSourceType` aus einem C2PA-Manifest (z.B. von Adobe / Firefly automatisch
 eingebettet) und bewertet jedes Bild: KI-generiert, KI-bearbeitet, andere Herkunft oder keine.
 
 ## Wofür dieses Tool gedacht ist - und wofür nicht
 
-> **Dieses Tool ist ein Selbstprüf-Werkzeug.** Es hilft dir, deine **eigenen** Bilder und Seiten
-> auf die KI-Kennzeichnung nach dem EU AI Act zu prüfen und rechtssicher zu machen - nicht mehr und
-> nicht weniger.
+> **Dieses Tool prüft deine eigenen Bilder und Seiten** auf die KI-Kennzeichnung nach dem
+> EU AI Act und macht sie rechtssicher - nicht mehr und nicht weniger.
 >
 > Es ist **ausdrücklich NICHT** dazu gedacht, fremde Webseiten zu durchleuchten, Verstöße zu
 > sammeln und daraus Abmahnungen zu basteln. Wer das damit vorhat, ist hier falsch.

@@ -1,4 +1,4 @@
-"""c2pa-scanner - Selbstpruef-Werkzeug fuer C2PA-/KI-Herkunftsnachweise in Bildern."""
+"""c2pa-scanner - erkennt C2PA-/KI-Herkunft in Bildern (EU AI Act Art. 50)."""
 
 __version__ = "0.1.0"
 __author__ = "Michael Blaess"

@@ -7,16 +7,16 @@
 
 ---
 
-A self-audit tool that detects the **C2PA provenance manifest** in images and flags the ones
-that are **AI-generated** - so you can label them as required by the EU AI Act (Art. 50).
+Detects the **C2PA provenance manifest** in images and flags the ones that are
+**AI-generated** - so you can label them as required by the EU AI Act (Art. 50).
 
 It reads the `digitalSourceType` from a C2PA manifest (e.g. embedded automatically by Adobe /
 Firefly) and classifies each image: AI-generated, AI-edited, other provenance, or none.
 
 ## What this tool is for - and what it is not
 
-> **This tool is a self-audit helper.** It helps you check **your own** images and pages for AI
-> labeling and make them compliant - nothing more.
+> **This tool checks your own images and pages** for AI labeling under the EU AI Act and
+> makes them compliant - nothing more.
 >
 > It is **explicitly NOT** meant to scan third-party websites, collect violations and turn them
 > into cease-and-desist letters. If that is your plan, you are in the wrong place.
