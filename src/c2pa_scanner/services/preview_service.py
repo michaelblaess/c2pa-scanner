@@ -52,12 +52,20 @@ class PreviewService:
         self._ttl = ttl_seconds
         self._proxy = proxy.strip()
 
-    async def capture(self, url: str, on_phase: PhaseCallback | None = None) -> bytes | None:
-        """Liefert einen Full-Page-PNG-Screenshot der Seite (aus Cache, wenn frisch).
+    async def capture(
+        self, url: str, image_url: str = "", on_phase: PhaseCallback | None = None
+    ) -> bytes | None:
+        """Liefert einen Viewport-Screenshot der Seite, zum Bild gescrollt.
+
+        Statt der ganzen Seite wird zum konkreten Fund-Bild gescrollt (zentriert)
+        und nur der sichtbare Ausschnitt fotografiert - lesbar, um zu pruefen, ob
+        ein KI-Label auf/an dem Bild dargestellt wird.
 
         Args:
             url:
                 Die zu fotografierende Seiten-URL.
+            image_url:
+                URL des Fund-Bilds, zu dem gescrollt wird (leer = Seitenanfang).
             on_phase:
                 Optionaler Callback je Schritt ("navigate", "consent",
                 "render", "capture"); bei Cache-Treffern NICHT gerufen.
@@ -65,18 +73,19 @@ class PreviewService:
         Returns:
             PNG-Bilddaten oder None, wenn der Screenshot fehlschlaegt.
         """
-        cached = self._mem.get(url)
+        key = f"{url}\n{image_url}"
+        cached = self._mem.get(key)
         if cached is not None:
             return cached
 
         async with self._lock:
-            cached = self._mem.get(url)
+            cached = self._mem.get(key)
             if cached is not None:
                 return cached
 
-            disk = self._load_disk(url)
+            disk = self._load_disk(key)
             if disk is not None:
-                self._mem[url] = disk
+                self._mem[key] = disk
                 return disk
 
             try:
@@ -86,16 +95,39 @@ class PreviewService:
                     self._emit(on_phase, "navigate")
                     await page.goto(url, wait_until="load", timeout=20000)
                     await self._prepare_page(page, on_phase)
+                    if image_url:
+                        await self._scroll_to_image(page, image_url)
                     self._emit(on_phase, "capture")
-                    data: bytes = await page.screenshot(type="png", full_page=True)
+                    data: bytes = await page.screenshot(type="png")
                 finally:
                     await page.close()
             except Exception:  # noqa: BLE001 - Vorschau darf nie crashen
                 return None
 
-        self._mem[url] = data
-        self._save_disk(url, data)
+        self._mem[key] = data
+        self._save_disk(key, data)
         return data
+
+    @staticmethod
+    async def _scroll_to_image(page: Any, image_url: str) -> None:
+        """Scrollt das <img> mit der passenden Quelle zentriert in den Viewport."""
+        with contextlib.suppress(Exception):
+            await page.evaluate(
+                """(url) => {
+                    const norm = (u) => { try { return new URL(u, location.href).href; }
+                                          catch (e) { return u; } };
+                    const target = norm(url);
+                    const base = (url.split('#')[0].split('?')[0].split('/').pop()) || '';
+                    const imgs = Array.from(document.querySelectorAll('img'));
+                    let el = imgs.find((i) => norm(i.currentSrc || i.src) === target);
+                    if (!el && base) {
+                        el = imgs.find((i) => (i.currentSrc || i.src || '').includes(base));
+                    }
+                    if (el) { el.scrollIntoView({block: 'center', inline: 'center'}); }
+                }""",
+                image_url,
+            )
+            await page.wait_for_timeout(400)
 
     @staticmethod
     def _emit(on_phase: PhaseCallback | None, phase: str) -> None:

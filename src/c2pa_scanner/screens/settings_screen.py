@@ -101,8 +101,8 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
                 )
             yield Static(
                 "Neustart nötig. An = unter der Bildvorschau erscheint ein Screenshot der "
-                "gerenderten Fundseite - so siehst Du ohne Absprung, ob das KI-Label auf der "
-                "Seite dargestellt wird. Nur mit grafischer Vorschau (oben) wirklich lesbar.",
+                "gerenderten Fundseite, zum Bild gescrollt - so siehst Du ohne Absprung, ob das "
+                "KI-Label auf/am Bild dargestellt wird. Nur mit grafischer Vorschau lesbar.",
                 classes="hint",
             )
 

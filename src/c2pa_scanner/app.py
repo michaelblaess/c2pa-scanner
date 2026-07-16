@@ -367,10 +367,10 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         if finding is not None:
             self._load_preview(finding.image_url, finding.page_url)
             if self._page_preview:
-                self._load_page_preview(finding.page_url)
+                self._load_page_preview(finding.page_url, finding.image_url)
 
     @work(exclusive=True, group="page-preview")
-    async def _load_page_preview(self, page_url: str) -> None:
+    async def _load_page_preview(self, page_url: str, image_url: str) -> None:
         panel = self.query_one("#page-preview", PreviewPanel)
         if self._preview_service is None:
             self._preview_service = PreviewService(proxy=self._proxy)
@@ -385,7 +385,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
             panel.show_bytes(None, f"Bitte warten - {phases.get(phase, phase)}", page_url)
 
         panel.show_bytes(None, "Bitte warten ...", page_url)
-        data = await self._preview_service.capture(page_url, on_phase=on_phase)
+        data = await self._preview_service.capture(page_url, image_url, on_phase=on_phase)
         panel.show_bytes(data, "" if data else "Vorschau fehlgeschlagen", page_url)
 
     @work(exclusive=True, group="preview")
