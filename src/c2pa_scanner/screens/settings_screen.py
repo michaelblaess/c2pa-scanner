@@ -39,6 +39,22 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
                 "i.d.R. breit - ein Wert wie 300 blendet den Icon-Lärm aus.",
                 classes="hint",
             )
+            with Horizontal(classes="settings-row"):
+                yield Label("Parallele Requests")
+                yield Input(
+                    value=str(self._settings.get("concurrency", 8)),
+                    placeholder="8",
+                    id="set-concurrency",
+                    type="integer",
+                )
+            with Horizontal(classes="settings-row"):
+                yield Label("Timeout (Sek.)")
+                yield Input(
+                    value=str(self._settings.get("timeout", 30)),
+                    placeholder="30",
+                    id="set-timeout",
+                    type="integer",
+                )
         with (
             TabPane("Netzwerk", id="settings-tab-net"),
             VerticalScroll(),
@@ -64,14 +80,25 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
                 classes="hint",
             )
 
+    @staticmethod
+    def _clamp_int(value: str, default: int, lo: int, hi: int) -> int:
+        try:
+            return max(lo, min(hi, int(value.strip())))
+        except (TypeError, ValueError):
+            return default
+
     def collect_app_settings(self, settings: dict[str, object]) -> None:
         settings["proxy_url"] = self.query_one("#set-proxy", Input).value.strip()
         settings["graphics_preview"] = self.query_one("#set-graphics", Checkbox).value
-        raw = self.query_one("#set-min-size", Input).value.strip()
-        try:
-            settings["min_image_size"] = max(0, int(raw)) if raw else 0
-        except ValueError:
-            settings["min_image_size"] = 0
+        settings["min_image_size"] = self._clamp_int(
+            self.query_one("#set-min-size", Input).value, 0, 0, 100000
+        )
+        settings["concurrency"] = self._clamp_int(
+            self.query_one("#set-concurrency", Input).value, 8, 1, 64
+        )
+        settings["timeout"] = self._clamp_int(
+            self.query_one("#set-timeout", Input).value, 30, 5, 300
+        )
 
     def storage_paths(self) -> list[tuple[str, Path]]:
         return [("Einstellungen", JsonSettingsStore().path)]
