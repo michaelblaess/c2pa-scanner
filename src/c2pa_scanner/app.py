@@ -27,7 +27,6 @@ from textual_widgets import (
     LogPanel,
     LogRouter,
     UrlInputScreen,
-    VerticalSplitter,
 )
 
 from c2pa_scanner import __author__, __version__, __year__
@@ -37,6 +36,7 @@ from c2pa_scanner.infrastructure.settings import JsonSettingsStore
 from c2pa_scanner.services.sitemap_scan import SitemapScanService
 from c2pa_scanner.widgets.findings_table import FindingsTable
 from c2pa_scanner.widgets.preview_panel import PreviewPanel
+from c2pa_scanner.widgets.splitters import GripHorizontalSplitter, GripVerticalSplitter
 
 _USER_AGENT = "Mozilla/5.0 (c2pa-scanner)"
 _BAR_WIDTH = 24
@@ -104,6 +104,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
             self.theme = theme
         self._proxy = str(settings.get("proxy_url", ""))
         self._graphics_pref = bool(settings.get("graphics_preview", False))
+        self._min_size = self._read_min_size(settings)
 
         last = settings.get("last_sitemap")
         self._sitemap: str | None = start_sitemap or (
@@ -135,9 +136,9 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         )
         with Horizontal(id="main"):
             yield FindingsTable(id="results")
-            yield VerticalSplitter(target_id="results", min_size=30, id="vsplit")
+            yield GripVerticalSplitter(target_id="results", min_size=30, id="vsplit")
             yield PreviewPanel(id="preview", enabled_graphics=self._graphics_pref)
-        yield HorizontalSplitter(target_id="main", min_size=8, id="logsplit")
+        yield GripHorizontalSplitter(target_id="main", min_size=8, id="logsplit")
         yield LogPanel(lang="de", export_name="c2pa-scanner", id="log")
         yield Footer()
 
@@ -191,6 +192,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
                 on_log=self._on_log,
                 on_progress=self._on_progress,
                 proxy=self._proxy,
+                min_image_size=self._min_size,
             )
         except Exception as exc:  # noqa: BLE001 - Fehler dem User zeigen, nicht crashen
             self.post_message(LogMessage.error(f"Scan-Fehler: {exc}"))
@@ -456,6 +458,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
             return
         self._persist(new_settings)
         self._proxy = str(new_settings.get("proxy_url", self._proxy))
+        self._min_size = self._read_min_size(new_settings)
 
     def action_show_about(self) -> None:
         self.push_screen(
@@ -472,6 +475,13 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         )
 
     # --- Helpers ------------------------------------------------------------
+
+    @staticmethod
+    def _read_min_size(settings: dict[str, object]) -> int:
+        try:
+            return max(0, int(str(settings.get("min_image_size", 0) or 0)))
+        except (TypeError, ValueError):
+            return 0
 
     def _persist(self, changes: dict[str, object]) -> None:
         data = self._settings_store.load()

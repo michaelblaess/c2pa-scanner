@@ -57,6 +57,7 @@ class FindingsTable(Vertical):
         0: lambda f: _VERDICT_ORDER[f.verdict],
         1: lambda f: (f.digital_source_type or "").lower(),
         2: lambda f: _url_name(f.image_url).lower(),
+        3: lambda f: f.width * f.height,
     }
 
     DEFAULT_CSS = """
@@ -93,7 +94,7 @@ class FindingsTable(Vertical):
 
     def on_mount(self) -> None:
         table = self.query_one("#results-data", DataTable)
-        self._base_labels = ["Status", "C2PA-Herkunft", "Bild"]
+        self._base_labels = ["Status", "C2PA-Herkunft", "Bild", "Größe"]
         self._col_keys = list(table.add_columns(*self._base_labels))
         self._update_sort_indicator()
         self._update_count()
@@ -175,10 +176,16 @@ class FindingsTable(Vertical):
 
     def _append_row(self, finding: ImageFinding, idx: int) -> None:
         label, style = _VERDICT_STYLE[finding.verdict]
+        if finding.verdict is Verdict.ERROR and finding.error:
+            herkunft = finding.error
+        else:
+            herkunft = _short_source_type(finding.digital_source_type)
+        size = f"{finding.width}×{finding.height}" if finding.width and finding.height else "-"
         self.query_one("#results-data", DataTable).add_row(
             Text(label, style=style),
-            _short_source_type(finding.digital_source_type),
+            herkunft,
             _url_name(finding.image_url),
+            size,
             key=str(idx),
         )
 

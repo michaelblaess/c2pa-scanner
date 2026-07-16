@@ -59,6 +59,17 @@ def _read_manifest(reader: Any) -> tuple[bool, str | None]:
     return (True, _find_digital_source_type(parsed))
 
 
+def image_size(data: bytes) -> tuple[int, int]:
+    """Ermittelt (Breite, Hoehe) eines Bildes aus Bytes; (0, 0) wenn nicht lesbar."""
+    from PIL import Image
+
+    try:
+        with Image.open(io.BytesIO(data)) as img:
+            return (int(img.width), int(img.height))
+    except Exception:  # noqa: BLE001 - nicht lesbares Bild -> unbekannte Groesse
+        return (0, 0)
+
+
 def read_bytes(data: bytes, content_type: str) -> tuple[bool, str | None]:
     """Liest C2PA aus rohen Bild-Bytes. content_type = HTTP-Content-Type oder ''."""
     from c2pa import Reader
