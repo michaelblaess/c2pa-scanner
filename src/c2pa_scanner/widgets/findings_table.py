@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from typing import Any
+from urllib.parse import urlparse
 
 from rich.text import Text
 from textual import on
@@ -44,6 +45,11 @@ def _url_name(url: str) -> str:
     return path.rsplit("/", 1)[-1] or url
 
 
+def _page_path(url: str) -> str:
+    parsed = urlparse(url)
+    return (parsed.path or "/") + (f"?{parsed.query}" if parsed.query else "")
+
+
 class FindingsTable(Vertical):
     """Container: Suchleiste, Trefferzaehler und die eigentliche DataTable.
 
@@ -58,6 +64,7 @@ class FindingsTable(Vertical):
         1: lambda f: (f.digital_source_type or "").lower(),
         2: lambda f: _url_name(f.image_url).lower(),
         3: lambda f: f.width * f.height,
+        4: lambda f: _page_path(f.page_url).lower(),
     }
 
     DEFAULT_CSS = """
@@ -94,7 +101,7 @@ class FindingsTable(Vertical):
 
     def on_mount(self) -> None:
         table = self.query_one("#results-data", DataTable)
-        self._base_labels = ["Status", "C2PA-Herkunft", "Bild", "Größe"]
+        self._base_labels = ["Status", "C2PA-Herkunft", "Bild", "Größe", "Seite"]
         self._col_keys = list(table.add_columns(*self._base_labels))
         self._update_sort_indicator()
         self._update_count()
@@ -186,6 +193,7 @@ class FindingsTable(Vertical):
             herkunft,
             _url_name(finding.image_url),
             size,
+            _page_path(finding.page_url),
             key=str(idx),
         )
 

@@ -123,7 +123,7 @@ class SitemapScanService:
             if image_tasks:
                 await asyncio.gather(*image_tasks)
             if skipped:
-                on_log(f"{skipped} Bilder uebersprungen (kleiner als {self._min_size}px)")
+                on_log(f"{skipped} Bilder uebersprungen (schmaler als {self._min_size}px)")
 
     async def _check_image(
         self, client: httpx.AsyncClient, image_url: str, page_url: str
@@ -138,7 +138,7 @@ class SitemapScanService:
                 image_url, page_url, False, None, Verdict.ERROR, _failure_reason(exc)
             )
         has_c2pa, dst, width, height = await asyncio.to_thread(_probe, data, content_type)
-        if self._min_size > 0 and 0 < max(width, height) < self._min_size:
+        if self._min_size > 0 and 0 < width < self._min_size:
             return None
         return ImageFinding(
             image_url, page_url, has_c2pa, dst, classify(dst, has_c2pa),
