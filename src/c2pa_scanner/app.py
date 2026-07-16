@@ -46,7 +46,7 @@ _USER_AGENT = "Mozilla/5.0 (c2pa-scanner)"
 _BAR_WIDTH = 24
 
 _ABOUT_DESCRIPTION = (
-    "Selbstprüf-Werkzeug für C2PA-/KI-Herkunft in Bildern.\n\n"
+    "Prüft Bilder auf ihre C2PA-/KI-Herkunft.\n\n"
     "Es prüft die Bilder deiner EIGENEN Seiten (per Sitemap) - ausdrücklich NICHT\n"
     "zum Durchleuchten fremder Seiten oder für Abmahnungen. Der C2PA-Scan ist nur\n"
     "ein Indiz, kein Rechtsgutachten.\n\n"
@@ -58,6 +58,10 @@ _ABOUT_DESCRIPTION = (
     "  kein C2PA      - keine Herkunftsdaten im Bild gefunden\n\n"
     "KI-generiert und KI-bearbeitet sind beide kennzeichnungspflichtig; die\n"
     "Unterscheidung sagt nur, wie stark KI im Spiel war (IPTC digitalSourceType).\n\n"
+    "Wichtig: Der Scan ist ein positives Indiz FÜR KI (wenn ein Marker da ist),\n"
+    "aber kein Beweis dagegen. Fehlt der Marker oder ganz das C2PA-Manifest,\n"
+    "kann trotzdem KI benutzt worden sein - Herkunftsdaten zeigen nur, was das\n"
+    "signierende Tool eingetragen hat.\n\n"
     "Rechtsgrundlage: EU AI Act (VO 2024/1689), Artikel 50 - gültig ab 2. August 2026.\n"
     "Gesetzestext: https://eur-lex.europa.eu/eli/reg/2024/1689/oj"
 )

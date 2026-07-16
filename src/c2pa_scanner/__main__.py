@@ -134,7 +134,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         prog="c2pa-scanner",
         description=(
-            "Selbstpruef-Werkzeug: erkennt C2PA-/KI-Herkunft in Bildern (EU AI Act Art. 50)."
+            "Erkennt C2PA-/KI-Herkunft in Bildern (EU AI Act Art. 50)."
         ),
     )
     parser.add_argument("--version", action="version", version=f"c2pa-scanner {__version__}")
