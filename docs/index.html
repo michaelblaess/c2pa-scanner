@@ -86,7 +86,9 @@
       <li><strong>Page crawl</strong>: all pages from a sitemap are fetched and image URLs extracted via
       regex over the raw HTML - this also finds images in web-component attributes / shadow DOM, not just
       classic <code>&lt;img src&gt;</code>. If no direct sitemap URL is given, it is discovered
-      automatically (robots.txt, then common paths).</li>
+      automatically (robots.txt, then common paths). For a more complete sitemap than the official one,
+      use the companion tool <a href="https://github.com/michaelblaess/sitemap-tracker">Sitemap-Tracker</a>
+      and load its XML output as a local file.</li>
     </ul>
 
     <h3>Verdict categories</h3>
@@ -146,7 +148,7 @@ c2pa-scanner make-testimage ./test-edited.jpg --edited</code></pre>
     EXIF/XMP-Herkunft - eine Hilfe für die KI-Kennzeichnung nach EU AI Act Art. 50.</p>
 
     <div class="note">
-      <strong>Wofür dieses Tool gedacht ist - und wofür nicht.</strong> Es prüft <em>deine eigenen</em>
+      <strong>Wofür dieses Tool gedacht ist - und wofür nicht.</strong> Es prüft <em>Deine eigenen</em>
       Bilder und Seiten auf die KI-Kennzeichnung nach dem EU AI Act und macht sie rechtssicher - nicht
       mehr und nicht weniger. Es ist ausdrücklich NICHT dazu gedacht, fremde Seiten zu durchleuchten oder
       Abmahnungen zu füttern. Ein C2PA-Treffer ist ein Indiz, kein Rechtsgutachten.
@@ -169,7 +171,10 @@ c2pa-scanner make-testimage ./test-edited.jpg --edited</code></pre>
       <li><strong>Seiten-Crawl</strong>: aus einer Sitemap werden alle Seiten geladen und die Bild-URLs
       per Regex über das rohe HTML extrahiert - das findet auch Bilder in
       Web-Component-Attributen/Shadow-DOM, nicht nur klassische <code>&lt;img src&gt;</code>. Fehlt eine
-      direkte Sitemap-URL, wird sie automatisch gesucht (robots.txt, danach übliche Standardpfade).</li>
+      direkte Sitemap-URL, wird sie automatisch gesucht (robots.txt, danach übliche Standardpfade). Eine
+      vollständigere Sitemap als die offizielle liefert das Schwester-Tool
+      <a href="https://github.com/michaelblaess/sitemap-tracker">Sitemap-Tracker</a> - dessen XML-Ausgabe
+      lädst Du einfach als lokale Datei.</li>
     </ul>
 
     <h3>Status-Kategorien</h3>

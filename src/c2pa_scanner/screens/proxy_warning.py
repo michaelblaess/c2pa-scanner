@@ -41,7 +41,7 @@ class ProxyWarningScreen(ModalScreen[None]):
                     f"  {self._detection.host}\n\n"
                     "Dadurch werden keine echten Seiten und Bilder erreicht - der Scan bleibt "
                     "leer.\n\n"
-                    "Trage in den Einstellungen (s) die Proxy-URL deines Zscaler-/Corporate-"
+                    "Trage in den Einstellungen (s) die Proxy-URL Deines Zscaler-/Corporate-"
                     "Proxys ein (z.B. http://proxy-host:port) und starte den Scan erneut."
                 )
             with Horizontal(id="buttons"):

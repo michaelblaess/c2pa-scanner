@@ -47,7 +47,7 @@ _BAR_WIDTH = 24
 
 _ABOUT_DESCRIPTION = (
     "Prüft Bilder auf ihre C2PA-/KI-Herkunft.\n\n"
-    "Es prüft die Bilder deiner EIGENEN Seiten (per Sitemap) - ausdrücklich NICHT\n"
+    "Es prüft die Bilder Deiner EIGENEN Seiten (per Sitemap) - ausdrücklich NICHT\n"
     "zum Durchleuchten fremder Seiten oder für Abmahnungen. Der C2PA-Scan ist nur\n"
     "ein Indiz, kein Rechtsgutachten.\n\n"
     "Status-Kategorien in der Tabelle:\n"
