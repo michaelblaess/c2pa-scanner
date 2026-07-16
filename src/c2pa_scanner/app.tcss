@@ -11,15 +11,20 @@ Screen {
     layout: horizontal;
 }
 
-#results {
-    width: 55%;
+#left {
+    width: 60%;
+    min-width: 40;
     height: 1fr;
+    layout: vertical;
 }
 
-#preview {
-    width: 1fr;
-    height: 1fr;
-    border-left: solid $accent;
+#results {
+    height: 4fr;
+    min-height: 10;
+}
+
+#logsplit {
+    height: 1;
 }
 
 #logsplit.hidden {
@@ -27,12 +32,23 @@ Screen {
 }
 
 #log {
-    height: 12;
+    height: 1fr;
     min-height: 5;
-    max-height: 30;
+    max-height: 40;
     background: $surface;
 }
 
 #log.hidden {
     display: none;
+}
+
+#vsplit {
+    width: 1;
+    height: 1fr;
+}
+
+#preview {
+    width: 1fr;
+    height: 1fr;
+    border-left: solid $accent;
 }

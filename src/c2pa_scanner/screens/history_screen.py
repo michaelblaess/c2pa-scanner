@@ -28,8 +28,8 @@ class HistoryScreen(ModalScreen[str | None]):
     """
 
     BINDINGS = [
-        Binding("escape", "cancel", "Schliessen"),
-        Binding("enter", "select", "Auswaehlen"),
+        Binding("escape", "cancel", "Schließen"),
+        Binding("enter", "select", "Auswählen"),
     ]
 
     def __init__(self, entries: list[HistoryEntry]) -> None:
@@ -41,8 +41,8 @@ class HistoryScreen(ModalScreen[str | None]):
             yield Static("History - gescannte Sitemaps", id="title")
             yield DataTable(id="history-table", cursor_type="row", zebra_stripes=True)
             with Horizontal(id="buttons"):
-                yield Button("Auswaehlen", variant="primary", id="hist-select")
-                yield Button("Schliessen", variant="default", id="hist-close")
+                yield Button("Auswählen", variant="primary", id="hist-select")
+                yield Button("Schließen", variant="default", id="hist-close")
 
     def on_mount(self) -> None:
         table: DataTable[str] = self.query_one("#history-table", DataTable)

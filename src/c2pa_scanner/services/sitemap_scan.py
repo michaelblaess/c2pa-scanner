@@ -15,6 +15,9 @@ from c2pa_scanner.services.classify import classify
 
 _USER_AGENT = "Mozilla/5.0 (c2pa-scanner)"
 
+# Fortschritt: (phase, erledigt, gesamt) - phase ist "pages" oder "images".
+ProgressCallback = Callable[[str, int, int], None]
+
 
 class SitemapScanService:
     """Crawlt die Seiten einer Sitemap und prueft ihre Bilder auf C2PA/KI."""
@@ -33,46 +36,68 @@ class SitemapScanService:
         on_pages: Callable[[int], None],
         on_finding: Callable[[ImageFinding], None],
         on_log: Callable[[str], None],
+        on_progress: ProgressCallback | None = None,
+        proxy: str = "",
     ) -> None:
         headers = {"User-Agent": _USER_AGENT}
         async with httpx.AsyncClient(
-            verify=False, follow_redirects=True, timeout=self._timeout, headers=headers
+            verify=False,
+            follow_redirects=True,
+            timeout=self._timeout,
+            headers=headers,
+            proxy=proxy.strip() or None,
         ) as client:
             on_log(f"Lade Sitemap: {source}")
             pages = await load_sitemap(client, source)
             on_pages(len(pages))
             on_log(f"{len(pages)} Seiten in der Sitemap")
 
-            image_to_page = await self._collect_images(client, pages, on_log)
+            image_to_page = await self._collect_images(client, pages, on_log, on_progress)
             on_log(f"{len(image_to_page)} eindeutige Bilder gefunden")
 
             image_sem = asyncio.Semaphore(self._image_concurrency)
+            done = 0
+            total = len(image_to_page)
 
             async def check(image_url: str, page_url: str) -> None:
+                nonlocal done
                 async with image_sem:
                     on_finding(await self._check_image(client, image_url, page_url))
+                done += 1
+                if on_progress is not None:
+                    on_progress("images", done, total)
 
             await asyncio.gather(
                 *(check(image_url, page_url) for image_url, page_url in image_to_page.items())
             )
 
     async def _collect_images(
-        self, client: httpx.AsyncClient, pages: list[str], on_log: Callable[[str], None]
+        self,
+        client: httpx.AsyncClient,
+        pages: list[str],
+        on_log: Callable[[str], None],
+        on_progress: ProgressCallback | None,
     ) -> dict[str, str]:
         page_sem = asyncio.Semaphore(self._page_concurrency)
         image_to_page: dict[str, str] = {}
         lock = asyncio.Lock()
+        done = 0
+        total = len(pages)
 
         async def scan_page(page_url: str) -> None:
+            nonlocal done
             async with page_sem:
                 try:
                     images = await fetch_page_images(client, page_url)
                 except Exception:  # noqa: BLE001 - eine kaputte Seite darf den Lauf nicht killen
                     on_log(f"Seite fehlgeschlagen: {page_url}")
-                    return
+                    images = []
                 async with lock:
                     for image_url in images:
                         image_to_page.setdefault(image_url, page_url)
+            done += 1
+            if on_progress is not None:
+                on_progress("pages", done, total)
 
         await asyncio.gather(*(scan_page(page_url) for page_url in pages))
         return image_to_page
