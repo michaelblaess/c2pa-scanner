@@ -1,4 +1,4 @@
-"""Sortierbare DataTable fuer die Scan-Ergebnisse (Header-Klick + Pfeil-Indikator)."""
+"""Ergebnis-Tabelle: Suchleiste + Zaehler + sortierbare DataTable mit C2PA-Filter."""
 
 from __future__ import annotations
 
@@ -6,7 +6,12 @@ from collections.abc import Callable
 from typing import Any
 
 from rich.text import Text
-from textual.widgets import DataTable
+from textual import on
+from textual.app import ComposeResult
+from textual.containers import Vertical
+from textual.reactive import reactive
+from textual.widgets import DataTable, Input, Static
+from textual_widgets import SearchInputWithHistory
 
 from c2pa_scanner.domain.models import ImageFinding, Verdict
 
@@ -39,8 +44,13 @@ def _url_name(url: str) -> str:
     return path.rsplit("/", 1)[-1] or url
 
 
-class FindingsTable(DataTable[Any]):
-    """DataTable, die ihre Findings selbst haelt und per Header-Klick sortiert."""
+class FindingsTable(Vertical):
+    """Container: Suchleiste, Trefferzaehler und die eigentliche DataTable.
+
+    Haelt alle Findings und zeigt eine gefilterte/sortierte Teilmenge an.
+    """
+
+    filter_text: reactive[str] = reactive("")
 
     # Nur Spalten in diesem dict sind klickbar/sortierbar.
     _SORT_KEYS: dict[int, Callable[[ImageFinding], Any]] = {
@@ -49,31 +59,67 @@ class FindingsTable(DataTable[Any]):
         2: lambda f: _url_name(f.image_url).lower(),
     }
 
+    DEFAULT_CSS = """
+    FindingsTable { height: 1fr; layout: vertical; }
+    FindingsTable SearchInputWithHistory { height: 3; }
+    FindingsTable #results-count { height: 1; color: $text-muted; padding: 0 1; }
+    FindingsTable #results-data { height: 1fr; }
+    """
+
     def __init__(self, **kwargs: Any) -> None:
-        super().__init__(cursor_type="row", zebra_stripes=True, **kwargs)
+        super().__init__(**kwargs)
         self._findings: list[ImageFinding] = []
+        self._filtered: list[ImageFinding] = []
         self._sort_col: int = 0
         self._sort_desc: bool = False
         self._base_labels: list[str] = []
         self._col_keys: list[Any] = []
         self.scanning: bool = False
+        self._only_c2pa: bool = False
 
     @property
     def findings(self) -> list[ImageFinding]:
         return self._findings
 
+    def compose(self) -> ComposeResult:
+        yield SearchInputWithHistory(
+            placeholder="Filter (Bild-URL, Status ...)",
+            icon="🔍",
+            input_id="filter-bar",
+            dropdown_id="filter-dropdown",
+        )
+        yield Static("", id="results-count")
+        yield DataTable(id="results-data", cursor_type="row", zebra_stripes=True)
+
     def on_mount(self) -> None:
-        self._base_labels = ["Verdict", "digitalSourceType", "Bild"]
-        self._col_keys = list(self.add_columns(*self._base_labels))
+        table = self.query_one("#results-data", DataTable)
+        self._base_labels = ["Status", "C2PA-Herkunft", "Bild"]
+        self._col_keys = list(table.add_columns(*self._base_labels))
         self._update_sort_indicator()
+        self._update_count()
+
+    def watch_filter_text(self, value: str) -> None:
+        if self.is_mounted:
+            self._apply_filter()
+
+    @on(Input.Changed, "#filter-bar")
+    def _on_filter_changed(self, event: Input.Changed) -> None:
+        self.filter_text = event.value
+
+    # --- oeffentliche API (von der App genutzt) ----------------------------
 
     def clear_findings(self) -> None:
         self._findings = []
-        self.clear()
+        self._filtered = []
+        self.query_one("#results-data", DataTable).clear()
+        self._update_count()
 
     def add_finding(self, finding: ImageFinding) -> None:
         self._findings.append(finding)
-        self._append_row(finding, len(self._findings) - 1)
+        if self._passes(finding):
+            self._filtered.append(finding)
+            self._append_row(finding, len(self._filtered) - 1)
+        self._update_count()
 
     def finding_for_key(self, key: object) -> ImageFinding | None:
         if key is None:
@@ -82,14 +128,20 @@ class FindingsTable(DataTable[Any]):
             idx = int(str(key))
         except ValueError:
             return None
-        if 0 <= idx < len(self._findings):
-            return self._findings[idx]
-        return None
+        return self._filtered[idx] if 0 <= idx < len(self._filtered) else None
 
     def sort_now(self) -> None:
-        """Wendet die aktuelle Sortierung an (z.B. nach Scan-Ende)."""
-        self._rebuild()
-        self._update_sort_indicator()
+        """Wendet Filter + Sortierung an (z.B. nach Scan-Ende)."""
+        self._apply_filter()
+
+    def set_only_c2pa(self, value: bool) -> None:
+        self._only_c2pa = value
+        self._apply_filter()
+
+    def only_c2pa(self) -> bool:
+        return self._only_c2pa
+
+    # --- intern ------------------------------------------------------------
 
     def on_data_table_header_selected(self, event: DataTable.HeaderSelected) -> None:
         try:
@@ -106,35 +158,54 @@ class FindingsTable(DataTable[Any]):
         else:
             self._sort_col = col_index
             self._sort_desc = False
-        self.sort_now()
+        self._apply_filter()
+
+    def _passes(self, finding: ImageFinding) -> bool:
+        if self._only_c2pa and not finding.has_c2pa:
+            return False
+        needle = self.filter_text.strip().lower()
+        if not needle:
+            return True
+        label = _VERDICT_STYLE[finding.verdict][0].lower()
+        return (
+            needle in finding.image_url.lower()
+            or needle in label
+            or needle in (finding.digital_source_type or "").lower()
+        )
 
     def _append_row(self, finding: ImageFinding, idx: int) -> None:
         label, style = _VERDICT_STYLE[finding.verdict]
-        self.add_row(
+        self.query_one("#results-data", DataTable).add_row(
             Text(label, style=style),
             _short_source_type(finding.digital_source_type),
             _url_name(finding.image_url),
             key=str(idx),
         )
 
-    def _rebuild(self) -> None:
-        # Zeilen-Key bleibt der ORIGINAL-Index -> Vorschau-Zuordnung bleibt stabil.
-        self.clear()
+    def _apply_filter(self) -> None:
+        self._filtered = [f for f in self._findings if self._passes(f)]
         sort_key = self._SORT_KEYS[self._sort_col]
-        order = sorted(
-            range(len(self._findings)),
-            key=lambda i: sort_key(self._findings[i]),
-            reverse=self._sort_desc,
-        )
-        for idx in order:
-            self._append_row(self._findings[idx], idx)
+        self._filtered.sort(key=sort_key, reverse=self._sort_desc)
+        table = self.query_one("#results-data", DataTable)
+        table.clear()
+        for idx, finding in enumerate(self._filtered):
+            self._append_row(finding, idx)
+        self._update_sort_indicator()
+        self._update_count()
+
+    def _update_count(self) -> None:
+        total = len(self._findings)
+        shown = len(self._filtered)
+        text = f"{total} Bilder" if shown == total else f"{shown} / {total} Bilder"
+        self.query_one("#results-count", Static).update(text)
 
     def _update_sort_indicator(self) -> None:
         arrow = " ▼" if self._sort_desc else " ▲"
+        table = self.query_one("#results-data", DataTable)
         for i, col_key in enumerate(self._col_keys):
             base = self._base_labels[i]
             label = f"{base}{arrow}" if i == self._sort_col else base
-            column = self.columns.get(col_key)
+            column = table.columns.get(col_key)
             if column is not None:
                 column.label = Text(label)
-        self.refresh()
+        table.refresh()
