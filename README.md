@@ -63,7 +63,9 @@ Detection is layered and deliberately tuned for few false positives:
 - **Page crawl:** all pages from a sitemap are fetched and image URLs are extracted via regex over the
   raw HTML - this also finds images in web-component attributes / shadow DOM, not just classic
   `<img src>`. If no direct sitemap URL is given, it is discovered automatically (robots.txt, then
-  common paths).
+  common paths). For a more complete sitemap than the official one, use the companion tool
+  [Sitemap-Tracker](https://github.com/michaelblaess/sitemap-tracker) and load its XML output as a
+  local file.
 
 **Limits:** images with no provenance signal at all (no C2PA, no XMP/EXIF) cannot be flagged as AI.
 Metadata can be stripped - screenshots, re-saving, and many platforms remove it on upload. A hit is a

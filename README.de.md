@@ -8,14 +8,14 @@
 ---
 
 Erkennt den **C2PA-Herkunftsnachweis** in Bildern und filtert die **KI-generierten**
-heraus - damit du sie nach dem EU AI Act (Art. 50) kennzeichnen kannst.
+heraus - damit Du sie nach dem EU AI Act (Art. 50) kennzeichnen kannst.
 
 Es liest den `digitalSourceType` aus einem C2PA-Manifest (z.B. von Adobe / Firefly automatisch
 eingebettet) und bewertet jedes Bild: KI-generiert, KI-bearbeitet, andere Herkunft oder keine.
 
 ## Wofür dieses Tool gedacht ist - und wofür nicht
 
-> **Dieses Tool prüft deine eigenen Bilder und Seiten** auf die KI-Kennzeichnung nach dem
+> **Dieses Tool prüft Deine eigenen Bilder und Seiten** auf die KI-Kennzeichnung nach dem
 > EU AI Act und macht sie rechtssicher - nicht mehr und nicht weniger.
 >
 > Es ist **ausdrücklich NICHT** dazu gedacht, fremde Webseiten zu durchleuchten, Verstöße zu
@@ -64,7 +64,9 @@ Die Erkennung ist mehrstufig und bewusst auf wenige Falsch-Positive ausgelegt:
 - **Seiten-Crawl:** aus einer Sitemap werden alle Seiten geladen und die Bild-URLs per Regex über das
   rohe HTML extrahiert - das findet auch Bilder in Web-Component-Attributen/Shadow-DOM, nicht nur
   klassische `<img src>`. Fehlt eine direkte Sitemap-URL, wird sie automatisch gesucht (robots.txt,
-  danach übliche Standardpfade).
+  danach übliche Standardpfade). Eine vollständigere Sitemap als die offizielle liefert das
+  Schwester-Tool [Sitemap-Tracker](https://github.com/michaelblaess/sitemap-tracker) - dessen
+  XML-Ausgabe lädst Du einfach als lokale Datei.
 
 **Grenzen:** Bilder ganz ohne Herkunftssignal (kein C2PA, kein XMP/EXIF) sind nicht als KI erkennbar.
 Metadaten lassen sich entfernen - Screenshot, erneutes Speichern, und viele Plattformen strippen sie

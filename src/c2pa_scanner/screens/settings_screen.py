@@ -76,7 +76,7 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
                 )
             yield Static(
                 "Neustart nötig. Aus = Text-Vorschau (Halfblock), die auf jedem Terminal "
-                "sicher rendert. An = pixelgenaue Vorschau, falls dein Terminal Sixel/TGP kann.",
+                "sicher rendert. An = pixelgenaue Vorschau, falls Dein Terminal Sixel/TGP kann.",
                 classes="hint",
             )
 
