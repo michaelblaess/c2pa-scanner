@@ -8,7 +8,7 @@ from collections.abc import Callable
 import httpx
 
 from c2pa_scanner.domain.models import ImageFinding, Verdict
-from c2pa_scanner.infrastructure.c2pa_reader import read_bytes
+from c2pa_scanner.infrastructure.c2pa_reader import image_size, read_bytes
 from c2pa_scanner.infrastructure.sitemap import load_sitemap
 from c2pa_scanner.infrastructure.web import fetch_page_images
 from c2pa_scanner.services.classify import classify
@@ -32,6 +32,13 @@ def _failure_reason(exc: Exception) -> str:
     return type(exc).__name__
 
 
+def _probe(data: bytes, content_type: str) -> tuple[bool, str | None, int, int]:
+    """Laeuft im Thread: liest C2PA-Manifest UND Bildgroesse aus den Bytes."""
+    has_c2pa, dst = read_bytes(data, content_type)
+    width, height = image_size(data)
+    return has_c2pa, dst, width, height
+
+
 class SitemapScanService:
     """Crawlt die Seiten einer Sitemap und prueft ihre Bilder auf C2PA/KI."""
 
@@ -41,6 +48,7 @@ class SitemapScanService:
         self._page_concurrency = page_concurrency
         self._image_concurrency = image_concurrency
         self._timeout = timeout
+        self._min_size = 0
 
     async def scan(
         self,
@@ -51,7 +59,9 @@ class SitemapScanService:
         on_log: Callable[[str], None],
         on_progress: ProgressCallback | None = None,
         proxy: str = "",
+        min_image_size: int = 0,
     ) -> None:
+        self._min_size = min_image_size
         headers = {"User-Agent": _USER_AGENT}
         async with httpx.AsyncClient(
             verify=False,
@@ -74,11 +84,19 @@ class SitemapScanService:
             seen_lock = asyncio.Lock()
             image_tasks: list[asyncio.Task[None]] = []
             pages_done = 0
+            skipped = 0
             total_pages = len(pages)
 
             async def check_image(image_url: str, page_url: str) -> None:
+                nonlocal skipped
                 async with image_sem:
-                    on_finding(await self._check_image(client, image_url, page_url))
+                    finding = await self._check_image(client, image_url, page_url)
+                if finding is None:  # zu klein -> uebersprungen
+                    skipped += 1
+                    return
+                on_finding(finding)
+                if finding.verdict is Verdict.ERROR and finding.error:
+                    on_log(f"Bild fehlgeschlagen ({finding.error}): {image_url}")
 
             async def scan_page(page_url: str) -> None:
                 nonlocal pages_done
@@ -104,16 +122,25 @@ class SitemapScanService:
             on_log(f"{len(seen)} eindeutige Bilder gefunden")
             if image_tasks:
                 await asyncio.gather(*image_tasks)
+            if skipped:
+                on_log(f"{skipped} Bilder uebersprungen (kleiner als {self._min_size}px)")
 
     async def _check_image(
         self, client: httpx.AsyncClient, image_url: str, page_url: str
-    ) -> ImageFinding:
+    ) -> ImageFinding | None:
         try:
             response = await client.get(image_url)
             response.raise_for_status()
             data = response.content
             content_type = response.headers.get("content-type", "")
         except Exception as exc:  # noqa: BLE001 - Netzwerkfehler als Finding melden
-            return ImageFinding(image_url, page_url, False, None, Verdict.ERROR, str(exc))
-        has_c2pa, dst = await asyncio.to_thread(read_bytes, data, content_type)
-        return ImageFinding(image_url, page_url, has_c2pa, dst, classify(dst, has_c2pa))
+            return ImageFinding(
+                image_url, page_url, False, None, Verdict.ERROR, _failure_reason(exc)
+            )
+        has_c2pa, dst, width, height = await asyncio.to_thread(_probe, data, content_type)
+        if self._min_size > 0 and 0 < max(width, height) < self._min_size:
+            return None
+        return ImageFinding(
+            image_url, page_url, has_c2pa, dst, classify(dst, has_c2pa),
+            width=width, height=height,
+        )

@@ -17,6 +17,18 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
 
     def app_tabs(self) -> ComposeResult:
         with (
+            TabPane("Scan", id="settings-tab-scan"),
+            VerticalScroll(),
+            Horizontal(classes="settings-row"),
+        ):
+            yield Label("Min. Bildgröße")
+            yield Input(
+                value=str(self._settings.get("min_image_size", 0)),
+                placeholder="0 = aus; sonst px (längste Kante) - kleinere werden nicht gescannt",
+                id="set-min-size",
+                type="integer",
+            )
+        with (
             TabPane("Netzwerk", id="settings-tab-net"),
             VerticalScroll(),
             Horizontal(classes="settings-row"),
@@ -42,6 +54,11 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
     def collect_app_settings(self, settings: dict[str, object]) -> None:
         settings["proxy_url"] = self.query_one("#set-proxy", Input).value.strip()
         settings["graphics_preview"] = self.query_one("#set-graphics", Checkbox).value
+        raw = self.query_one("#set-min-size", Input).value.strip()
+        try:
+            settings["min_image_size"] = max(0, int(raw)) if raw else 0
+        except ValueError:
+            settings["min_image_size"] = 0
 
     def storage_paths(self) -> list[tuple[str, Path]]:
         return [("Einstellungen", JsonSettingsStore().path)]

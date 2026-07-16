@@ -31,3 +31,5 @@ class ImageFinding:
     digital_source_type: str | None
     verdict: Verdict
     error: str | None = None
+    width: int = 0
+    height: int = 0

@@ -17,12 +17,14 @@ class ScanSummaryScreen(ModalScreen[None]):
     DEFAULT_CSS = """
     ScanSummaryScreen { align: center middle; }
     ScanSummaryScreen > Vertical {
-        width: 80%; max-width: 90; height: auto; max-height: 90%;
+        width: auto; max-width: 100; height: auto; max-height: 90%;
         background: $surface; border: thick $accent; padding: 1 2;
     }
     ScanSummaryScreen #summary-title {
         text-style: bold; color: $accent; height: 1; margin-bottom: 1;
     }
+    /* height: auto (NICHT 1fr) - sonst balloniert der Dialog auf max-height. */
+    ScanSummaryScreen #summary-scroll { height: auto; max-height: 90%; }
     ScanSummaryScreen #summary-buttons { height: 3; align: center middle; margin-top: 1; }
     """
 
@@ -54,7 +56,7 @@ class ScanSummaryScreen(ModalScreen[None]):
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Static("Scan abgeschlossen", id="summary-title")
-            with VerticalScroll():
+            with VerticalScroll(id="summary-scroll"):
                 yield Static(self._build())
             with Horizontal(id="summary-buttons"):
                 button = Button("Schließen", variant="primary", id="sum-close")
