@@ -67,11 +67,23 @@ Die Erkennung ist mehrstufig und bewusst auf wenige Falsch-Positive ausgelegt:
   danach übliche Standardpfade). Eine vollständigere Sitemap als die offizielle liefert das
   Schwester-Tool [Sitemap-Tracker](https://github.com/michaelblaess/sitemap-tracker) - dessen
   XML-Ausgabe lädst Du einfach als lokale Datei.
+- **Browser-Rendering** (optional, Standard aus): zuschaltbar rendert das Tool jede Seite zusätzlich in
+  einem headless Chromium (Playwright) und ergänzt so Bilder, die erst per JavaScript ins (Shadow-)DOM
+  geladen werden - als Union mit der Regex-Extraktion.
 
 **Grenzen:** Bilder ganz ohne Herkunftssignal (kein C2PA, kein XMP/EXIF) sind nicht als KI erkennbar.
 Metadaten lassen sich entfernen - Screenshot, erneutes Speichern, und viele Plattformen strippen sie
 beim Upload. Ein Treffer ist ein belastbares Indiz **für** KI; das Fehlen ist **kein** Beweis dagegen.
 Jedes Verkleinern/Zuschneiden bricht die C2PA-Signatur - also möglichst das Original prüfen.
+
+### In der TUI
+
+- **Live-Bildvorschau** rechts neben der Trefferliste, mit klickbarem Link zur Fundseite und einem
+  Dialog für das rohe C2PA-Manifest.
+- **Seiten-Vorschau** (optional): unter dem Bild ein Screenshot der gerenderten Fundseite, zum Bild
+  gescrollt - so siehst Du ohne Absprung, ob ein KI-Label auf/am Bild dargestellt wird.
+- **Filter & Sortierung**, Toggle "Nur KI-Bilder", **Export** per Rechtsklick (JSON, JIRA-Tabelle,
+  Klartext) und **Testbild-Signierung** als Positiv-Testfall.
 
 ### Andere Erkennungsmethoden - und warum (noch) nicht implementiert
 
