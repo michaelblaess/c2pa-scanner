@@ -1,0 +1,76 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-22.04, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      # Nuitka braucht patchelf fuer den --standalone-Build unter Linux
+      - name: Install patchelf (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y patchelf
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./bootstrap.ps1
+          ./compile-win64.ps1
+
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          ./bootstrap.sh
+          ./compile-linux.sh
+
+      - name: Build (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          ./bootstrap.sh
+          ./compile-macos.sh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          retention-days: 1
+          name: dist-${{ matrix.os }}
+          path: |
+            dist/c2pa-scanner-v*.zip
+            dist/c2pa-scanner-v*.tar.gz
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v7
+        with:
+          merge-multiple: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v3
+        with:
+          generate_release_notes: true
+          files: |
+            *.zip
+            *.tar.gz
