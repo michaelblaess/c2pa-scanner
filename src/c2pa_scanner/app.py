@@ -46,7 +46,8 @@ _ABOUT_DESCRIPTION = (
     "Es prüft die Bilder deiner EIGENEN Seiten (per Sitemap) - ausdrücklich NICHT\n"
     "zum Durchleuchten fremder Seiten oder für Abmahnungen. Der C2PA-Scan ist nur\n"
     "ein Indiz, kein Rechtsgutachten.\n\n"
-    "Rechtsgrundlage: EU AI Act (VO 2024/1689), Artikel 50 - gültig ab 2. August 2026."
+    "Rechtsgrundlage: EU AI Act (VO 2024/1689), Artikel 50 - gültig ab 2. August 2026.\n"
+    "Gesetzestext: https://eur-lex.europa.eu/eli/reg/2024/1689/oj"
 )
 
 
@@ -470,7 +471,8 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
                 description=_ABOUT_DESCRIPTION,
                 license="Apache-2.0",
                 lang="de",
-                url="https://eur-lex.europa.eu/eli/reg/2024/1689/oj",
+                url="https://www.michaelblaess.de/",
+                homepage_url="https://github.com/michaelblaess/c2pa-scanner",
             )
         )
 
