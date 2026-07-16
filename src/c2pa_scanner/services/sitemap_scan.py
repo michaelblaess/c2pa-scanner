@@ -58,6 +58,7 @@ class SitemapScanService:
         on_finding: Callable[[ImageFinding], None],
         on_log: Callable[[str], None],
         on_progress: ProgressCallback | None = None,
+        on_resolved: Callable[[str], None] | None = None,
         proxy: str = "",
         min_image_size: int = 0,
     ) -> None:
@@ -71,7 +72,9 @@ class SitemapScanService:
             proxy=proxy.strip() or None,
         ) as client:
             on_log(f"Lade Sitemap: {source}")
-            pages = await load_sitemap(client, source, on_log=on_log)
+            pages = await load_sitemap(
+                client, source, on_log=on_log, on_resolved=on_resolved
+            )
             on_pages(len(pages))
             on_log(f"{len(pages)} Seiten in der Sitemap")
 

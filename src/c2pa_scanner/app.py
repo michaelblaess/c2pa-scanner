@@ -210,6 +210,15 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
             self._end_scan(table)
             return
 
+        resolved = sitemap
+        def on_resolved(url: str) -> None:
+            nonlocal resolved
+            resolved = url
+            # Discovery hat eine andere Sitemap gefunden -> Header sofort umziehen.
+            if url != sitemap:
+                self._sitemap = url
+                self._update_stats()
+
         try:
             await SitemapScanService(
                 page_concurrency=self._concurrency,
@@ -221,6 +230,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
                 on_finding=self._on_finding,
                 on_log=self._on_log,
                 on_progress=self._on_progress,
+                on_resolved=on_resolved,
                 proxy=self._proxy,
                 min_image_size=self._min_size,
             )
@@ -231,8 +241,9 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
             return
 
         # Sitemap hat sauber geladen (kein 404/Parse-Fehler) -> erst JETZT als
-        # zuletzt erfolgreiche Quelle merken, nicht schon beim Eingeben.
-        self._persist({"last_sitemap": sitemap})
+        # zuletzt erfolgreiche Quelle merken, nicht schon beim Eingeben. Bei
+        # Auto-Discovery die tatsaechlich gefundene URL statt der Eingabe.
+        self._persist({"last_sitemap": resolved})
         table.sort_now()
         findings = table.findings
         needs = sum(1 for f in findings if f.verdict.needs_label)
