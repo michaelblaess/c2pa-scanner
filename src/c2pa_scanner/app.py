@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 import httpx
-from textual import work
+from textual import events, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal
@@ -144,6 +144,9 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
     def on_mount(self) -> None:
         self.query_one("#log", LogPanel).border_title = "Log-Ausgabe"
         self._update_stats()
+        # Fokus auf die Tabelle, NICHT auf die Suchleiste - ein fokussiertes
+        # Text-Input wuerde die Buchstaben-Shortcuts aus dem Footer ausblenden.
+        self.call_after_refresh(self._focus_table)
         if self._sitemap is not None:
             self.post_message(
                 LogMessage.info(f"Sitemap geladen: {self._sitemap} - 'c' zum Scannen")
@@ -423,6 +426,17 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
     def action_focus_filter(self) -> None:
         with contextlib.suppress(Exception):  # Fokus ist unkritisch
             self.query_one("#filter-bar", Input).focus()
+
+    def _focus_table(self) -> None:
+        with contextlib.suppress(Exception):
+            self.query_one("#results-data", DataTable).focus()
+
+    def on_key(self, event: events.Key) -> None:
+        # Esc im Filterfeld gibt den Fokus zurueck an die Tabelle -> Footer wieder voll.
+        focused = self.focused
+        if event.key == "escape" and isinstance(focused, Input) and focused.id == "filter-bar":
+            event.stop()
+            self.call_after_refresh(self._focus_table)
 
     def watch_theme(self, theme: str) -> None:
         if not hasattr(self, "_settings_store"):
