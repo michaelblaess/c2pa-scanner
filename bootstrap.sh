@@ -8,4 +8,7 @@ unset SSL_CERT_FILE REQUESTS_CA_BUNDLE 2>/dev/null || true
 echo "uv sync (--extra dev, --native-tls)..."
 uv sync --extra dev --native-tls
 
-echo "Fertig. Start: ./run.sh scan <ordner>"
+echo "Playwright Chromium..."
+uv run playwright install chromium
+
+echo "Fertig. Start: ./run.sh scan <sitemap-url>"

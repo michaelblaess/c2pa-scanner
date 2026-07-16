@@ -3,11 +3,21 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
-from c2pa_scanner import __version__
-from c2pa_scanner.domain.models import ImageFinding, Verdict
+# PLAYWRIGHT_BROWSERS_PATH muss gesetzt sein, BEVOR playwright importiert wird,
+# damit das gebundelte Chromium im "browsers"-Unterordner gefunden wird.
+# PyInstaller setzt sys.frozen, Nuitka stattdessen __compiled__.
+_is_frozen = getattr(sys, "frozen", False) or "__compiled__" in globals()
+if _is_frozen:
+    _browsers_dir = os.path.join(os.path.dirname(sys.executable), "browsers")
+    if os.path.isdir(_browsers_dir):
+        os.environ["PLAYWRIGHT_BROWSERS_PATH"] = _browsers_dir
+
+from c2pa_scanner import __version__  # noqa: E402 - nach dem Browsers-Path-Setup
+from c2pa_scanner.domain.models import ImageFinding, Verdict  # noqa: E402
 
 _VERDICT_LABEL = {
     Verdict.AI_GENERATED: "KI-GENERIERT",
@@ -52,6 +62,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                 on_pages=lambda n: pages.__setitem__("n", n),
                 on_finding=findings.append,
                 on_log=lambda m: print(m, file=sys.stderr),
+                render=args.render,
             )
         )
     except Exception as exc:  # noqa: BLE001 - Fehler dem User zeigen
@@ -146,6 +157,11 @@ def main() -> int:
 
     p_scan = sub.add_parser("scan", help="Sitemap crawlen und Bilder auf C2PA/KI pruefen")
     p_scan.add_argument("sitemap", help="Sitemap-URL oder lokale sitemap.xml")
+    p_scan.add_argument(
+        "--render",
+        action="store_true",
+        help="Seiten mit Playwright rendern (findet auch JS-/Shadow-DOM-Bilder, langsamer)",
+    )
     p_scan.set_defaults(func=_cmd_scan)
 
     p_make = sub.add_parser("make-testimage", help="Signiertes C2PA-Testbild erzeugen")

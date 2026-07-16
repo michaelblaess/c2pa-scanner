@@ -15,4 +15,8 @@ Write-Host "uv sync (--extra dev, --native-tls)..." -ForegroundColor Cyan
 uv sync --extra dev --native-tls
 if ($LASTEXITCODE -ne 0) { throw "uv sync fehlgeschlagen" }
 
-Write-Host "Fertig. Start: ./run.ps1 scan <ordner>" -ForegroundColor Green
+Write-Host "Playwright Chromium..." -ForegroundColor Cyan
+uv run playwright install chromium
+if ($LASTEXITCODE -ne 0) { throw "playwright install fehlgeschlagen" }
+
+Write-Host "Fertig. Start: ./run.ps1 scan <sitemap-url>" -ForegroundColor Green

@@ -55,6 +55,19 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
                     id="set-timeout",
                     type="integer",
                 )
+            with Horizontal(classes="settings-row"):
+                yield Label("Browser-Rendering")
+                yield Checkbox(
+                    "Seiten mit Playwright rendern (Shadow-DOM/JS-Bilder)",
+                    value=bool(self._settings.get("browser_render", False)),
+                    id="set-render",
+                )
+            yield Static(
+                "An = jede Seite wird zusätzlich in einem echten Chromium gerendert, um auch "
+                "erst per JavaScript ins (Shadow-)DOM geladene Bilder zu finden. Gründlicher, aber "
+                "deutlich langsamer. Aus = nur die Bild-URLs aus dem Server-HTML (schnell).",
+                classes="hint",
+            )
         with (
             TabPane("Netzwerk", id="settings-tab-net"),
             VerticalScroll(),
@@ -90,6 +103,7 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
     def collect_app_settings(self, settings: dict[str, object]) -> None:
         settings["proxy_url"] = self.query_one("#set-proxy", Input).value.strip()
         settings["graphics_preview"] = self.query_one("#set-graphics", Checkbox).value
+        settings["browser_render"] = self.query_one("#set-render", Checkbox).value
         settings["min_image_size"] = self._clamp_int(
             self.query_one("#set-min-size", Input).value, 0, 0, 100000
         )
