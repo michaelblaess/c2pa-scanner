@@ -13,11 +13,12 @@
   <link rel="stylesheet" href="css/precision.css">
   <style>
     .disclaimer {
-      max-width: var(--max-width); margin: 0 auto; padding: 20px 24px;
+      max-width: calc(var(--max-width) - 64px); margin: 0 auto; padding: 20px 24px;
       border: 1px solid var(--border); border-radius: var(--radius-lg);
       background: var(--bg-secondary); color: var(--text-secondary);
     }
     .disclaimer strong { color: var(--text-primary); }
+    @media (max-width: 640px) { .disclaimer { max-width: calc(100% - 32px); } }
     .reason { color: var(--accent); font-weight: 600; }
     .lead-note { max-width: var(--max-width); margin: 0 auto; color: var(--text-tertiary); }
   </style>
