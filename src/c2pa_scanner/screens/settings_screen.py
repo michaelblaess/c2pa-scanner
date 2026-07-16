@@ -6,27 +6,39 @@ from pathlib import Path
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, VerticalScroll
-from textual.widgets import Checkbox, Input, Label, TabPane
+from textual.widgets import Checkbox, Input, Label, Static, TabPane
 from textual_widgets import BaseSettingsScreen
 
 from c2pa_scanner.infrastructure.settings import JsonSettingsStore
 
 
 class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
-    """Einstellungen: Netzwerk (Proxy), Anzeige, plus Speicherort-Tab."""
+    """Einstellungen: Scan, Netzwerk (Proxy), Anzeige, plus Speicherort-Tab."""
+
+    DEFAULT_CSS = """
+    SettingsScreen .hint {
+        color: $text-muted;
+        padding: 0 1;
+        margin: 1 0 0 0;
+    }
+    """
 
     def app_tabs(self) -> ComposeResult:
-        with (
-            TabPane("Scan", id="settings-tab-scan"),
-            VerticalScroll(),
-            Horizontal(classes="settings-row"),
-        ):
-            yield Label("Min. Bildgröße")
-            yield Input(
-                value=str(self._settings.get("min_image_size", 0)),
-                placeholder="0 = aus; sonst px (längste Kante) - kleinere werden nicht gescannt",
-                id="set-min-size",
-                type="integer",
+        with TabPane("Scan", id="settings-tab-scan"), VerticalScroll():
+            with Horizontal(classes="settings-row"):
+                yield Label("Min. Kantenlänge (px)")
+                yield Input(
+                    value=str(self._settings.get("min_image_size", 0)),
+                    placeholder="0",
+                    id="set-min-size",
+                    type="integer",
+                )
+            yield Static(
+                "0 = aus. Sonst die Mindest-Kantenlänge in Pixel (längste Seite): kleinere "
+                "Bilder wie Icons und Thumbnails werden gar nicht erst gescannt. "
+                "Fotorealistische KI-Bilder sind i.d.R. groß - ein Wert wie 300 blendet den "
+                "Icon-Lärm aus.",
+                classes="hint",
             )
         with (
             TabPane("Netzwerk", id="settings-tab-net"),
@@ -39,16 +51,18 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
                 placeholder="http://proxy-host:port (Zscaler/Corporate)",
                 id="set-proxy",
             )
-        with (
-            TabPane("Anzeige", id="settings-tab-view"),
-            VerticalScroll(),
-            Horizontal(classes="settings-row"),
-        ):
-            yield Label("Bildvorschau")
-            yield Checkbox(
-                "Grafische Vorschau (Sixel/TGP) - Neustart nötig; sonst Text-Vorschau",
-                value=bool(self._settings.get("graphics_preview", False)),
-                id="set-graphics",
+        with TabPane("Anzeige", id="settings-tab-view"), VerticalScroll():
+            with Horizontal(classes="settings-row"):
+                yield Label("Bildvorschau")
+                yield Checkbox(
+                    "Grafische Vorschau (Sixel/TGP)",
+                    value=bool(self._settings.get("graphics_preview", False)),
+                    id="set-graphics",
+                )
+            yield Static(
+                "Neustart nötig. Aus = Text-Vorschau (Halfblock), die auf jedem Terminal "
+                "sicher rendert. An = pixelgenaue Vorschau, falls dein Terminal Sixel/TGP kann.",
+                classes="hint",
             )
 
     def collect_app_settings(self, settings: dict[str, object]) -> None:
