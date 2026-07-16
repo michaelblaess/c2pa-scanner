@@ -401,8 +401,12 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
     # --- Sitemap-Wahl / History --------------------------------------------
 
     def action_choose_sitemap(self) -> None:
+        # Nur eine echte http(s)-URL vorbefuellen - ein lokaler Dateipfad (per
+        # 'm' geladen) waere hier ungueltig und darf nicht ins URL-Feld.
+        current = self._sitemap or ""
+        initial = current if current.lower().startswith(("http://", "https://")) else ""
         self.push_screen(
-            UrlInputScreen(initial=self._sitemap or "", lang="de"),
+            UrlInputScreen(initial=initial, lang="de"),
             callback=self._on_sitemap_entered,
         )
 
