@@ -11,8 +11,8 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.widgets import DataTable, Footer, Header
-from textual_fspicker import FileSave
-from textual_themes import THEME_DISPLAY_NAMES, register_all
+from textual_fspicker import FileOpen, FileSave, Filters
+from textual_themes import register_all
 from textual_widgets import (
     AboutScreen,
     ClickableLinksMixin,
@@ -58,18 +58,18 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
     TITLE = f"c2pa-scanner v{__version__}"
 
     BINDINGS = [
-        Binding("o,O", "choose_sitemap", "Sitemap", key_display="o",
+        Binding("o,O", "choose_sitemap", "URL eingeben", key_display="o",
                 tooltip="Sitemap-URL eingeben (http/https)"),
+        Binding("m,M", "load_sitemap_file", "Sitemap laden", key_display="m",
+                tooltip="Lokale sitemap.xml oeffnen"),
         Binding("c,C", "scan", "Scan", key_display="c",
                 tooltip="Die aktuelle Sitemap (erneut) crawlen und Bilder pruefen"),
         Binding("h,H", "show_history", "History", key_display="h",
                 tooltip="Fruehere Sitemaps auswaehlen"),
-        Binding("m,M", "make_testimage", "Testbild", key_display="m",
+        Binding("t,T", "make_testimage", "Testbild erzeugen", key_display="t",
                 tooltip="Ein signiertes C2PA-Testbild erzeugen und speichern"),
         Binding("l,L", "toggle_log", "Log", key_display="l",
                 tooltip="Log-Panel ein-/ausblenden"),
-        Binding("t,T", "cycle_theme", "Theme", key_display="t",
-                tooltip="Naechstes Retro-Theme"),
         Binding("s,S", "show_settings", "Settings", key_display="s",
                 tooltip="Einstellungen oeffnen"),
         Binding("i,I", "show_about", "Info", key_display="i",
@@ -120,6 +120,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         yield Footer()
 
     def on_mount(self) -> None:
+        self.query_one("#log", LogPanel).border_title = "Log-Ausgabe"
         self._update_stats()
         if self._sitemap is not None:
             self.action_scan()
@@ -244,6 +245,25 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self._persist({"last_sitemap": url})
         self.action_scan()
 
+    def action_load_sitemap_file(self) -> None:
+        self.push_screen(
+            FileOpen(
+                location=str(Path.cwd()),
+                filters=Filters(
+                    ("Sitemap (*.xml)", lambda p: p.suffix.lower() == ".xml"),
+                    ("Alle Dateien", lambda p: True),
+                ),
+            ),
+            callback=self._on_sitemap_file,
+        )
+
+    def _on_sitemap_file(self, path: Path | None) -> None:
+        if path is None:
+            return
+        self._sitemap = str(path)
+        self._persist({"last_sitemap": str(path)})
+        self.action_scan()
+
     def action_show_history(self) -> None:
         from c2pa_scanner.screens.history_screen import HistoryScreen
 
@@ -286,18 +306,6 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
     def action_toggle_log(self) -> None:
         self.query_one("#log", LogPanel).toggle_class("hidden")
         self.query_one("#logsplit", HorizontalSplitter).toggle_class("hidden")
-
-    def action_cycle_theme(self) -> None:
-        names = sorted(self.available_themes.keys())
-        if not names:
-            return
-        try:
-            idx = names.index(self.theme)
-        except ValueError:
-            idx = -1
-        next_theme = names[(idx + 1) % len(names)]
-        self.theme = next_theme
-        self.notify(f"Theme: {THEME_DISPLAY_NAMES.get(next_theme, next_theme)}")
 
     def watch_theme(self, theme: str) -> None:
         if not hasattr(self, "_settings_store"):
