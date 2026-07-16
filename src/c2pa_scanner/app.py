@@ -9,7 +9,7 @@ import httpx
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal
 from textual.timer import Timer
 from textual.widgets import DataTable, Footer, Header
 from textual_fspicker import FileOpen, FileSave, Filters
@@ -127,12 +127,11 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
             id="stats",
         )
         with Horizontal(id="main"):
-            with Vertical(id="left"):
-                yield FindingsTable(id="results")
-                yield HorizontalSplitter(target_id="results", min_size=6, id="logsplit")
-                yield LogPanel(lang="de", export_name="c2pa-scanner", id="log")
-            yield VerticalSplitter(target_id="left", min_size=40, id="vsplit")
+            yield FindingsTable(id="results")
+            yield VerticalSplitter(target_id="results", min_size=30, id="vsplit")
             yield PreviewPanel(id="preview", enabled_graphics=self._graphics_pref)
+        yield HorizontalSplitter(target_id="main", min_size=8, id="logsplit")
+        yield LogPanel(lang="de", export_name="c2pa-scanner", id="log")
         yield Footer()
 
     def on_mount(self) -> None:
