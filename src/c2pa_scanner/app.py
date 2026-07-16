@@ -109,7 +109,9 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
             self.theme = theme
         self._proxy = str(settings.get("proxy_url", ""))
         self._graphics_pref = bool(settings.get("graphics_preview", False))
-        self._min_size = self._read_min_size(settings)
+        self._min_size = max(0, self._read_int(settings, "min_image_size", 0))
+        self._concurrency = max(1, self._read_int(settings, "concurrency", 8))
+        self._timeout = max(1, self._read_int(settings, "timeout", 30))
 
         last = settings.get("last_sitemap")
         self._sitemap: str | None = start_sitemap or (
@@ -194,7 +196,11 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
             return
 
         try:
-            await SitemapScanService().scan(
+            await SitemapScanService(
+                page_concurrency=self._concurrency,
+                image_concurrency=self._concurrency,
+                timeout=float(self._timeout),
+            ).scan(
                 sitemap,
                 on_pages=self._on_pages,
                 on_finding=self._on_finding,
@@ -250,7 +256,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
             return False
         from c2pa_scanner.infrastructure.proxy_detect import probe_proxy
 
-        detection = await probe_proxy(sitemap, proxy=self._proxy)
+        detection = await probe_proxy(sitemap, proxy=self._proxy, timeout=float(self._timeout))
         if detection is None:
             return False
         from c2pa_scanner.screens.proxy_warning import ProxyWarningScreen
@@ -521,7 +527,9 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
             return
         self._persist(new_settings)
         self._proxy = str(new_settings.get("proxy_url", self._proxy))
-        self._min_size = self._read_min_size(new_settings)
+        self._min_size = max(0, self._read_int(new_settings, "min_image_size", self._min_size))
+        self._concurrency = max(1, self._read_int(new_settings, "concurrency", self._concurrency))
+        self._timeout = max(1, self._read_int(new_settings, "timeout", self._timeout))
 
     def action_show_about(self) -> None:
         self.push_screen(
@@ -551,11 +559,11 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         return name or sitemap
 
     @staticmethod
-    def _read_min_size(settings: dict[str, object]) -> int:
+    def _read_int(settings: dict[str, object], key: str, default: int) -> int:
         try:
-            return max(0, int(str(settings.get("min_image_size", 0) or 0)))
+            return int(str(settings.get(key, default) or default))
         except (TypeError, ValueError):
-            return 0
+            return default
 
     def _persist(self, changes: dict[str, object]) -> None:
         data = self._settings_store.load()
