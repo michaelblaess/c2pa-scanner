@@ -9,3 +9,6 @@ dist/
 build/
 .local/
 *.log
+
+# versehentlich abgelegte Sitemaps
+sitemap_*.xml
