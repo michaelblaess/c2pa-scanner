@@ -13,6 +13,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.timer import Timer
+from textual.widget import Widget
 from textual.widgets import DataTable, Footer, Header, Input
 from textual_fspicker import FileOpen, FileSave, Filters
 from textual_themes import register_all
@@ -27,6 +28,7 @@ from textual_widgets import (
     LogPanel,
     LogRouter,
     UrlInputScreen,
+    VerticalSplitter,
 )
 
 from c2pa_scanner import __author__, __version__, __year__
@@ -36,7 +38,6 @@ from c2pa_scanner.infrastructure.settings import JsonSettingsStore
 from c2pa_scanner.services.sitemap_scan import SitemapScanService
 from c2pa_scanner.widgets.findings_table import FindingsTable
 from c2pa_scanner.widgets.preview_panel import PreviewPanel
-from c2pa_scanner.widgets.splitters import GripHorizontalSplitter, GripVerticalSplitter
 
 _USER_AGENT = "Mozilla/5.0 (c2pa-scanner)"
 _BAR_WIDTH = 24
@@ -120,6 +121,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self._prog_total = 0
         self._progress_timer: Timer | None = None
         self._scan_start = datetime.now()  # noqa: DTZ005 - nur Dauer-Differenz
+        self._attention_on = False
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -137,9 +139,9 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         )
         with Horizontal(id="main"):
             yield FindingsTable(id="results")
-            yield GripVerticalSplitter(target_id="results", min_size=30, id="vsplit")
+            yield VerticalSplitter(target_id="results", min_size=30, id="vsplit")
             yield PreviewPanel(id="preview", enabled_graphics=self._graphics_pref)
-        yield GripHorizontalSplitter(target_id="main", min_size=8, id="logsplit")
+        yield HorizontalSplitter(target_id="main", min_size=8, id="logsplit")
         yield LogPanel(lang="de", export_name="c2pa-scanner", id="log")
         yield Footer()
 
@@ -149,6 +151,8 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         # Fokus auf die Tabelle, NICHT auf die Suchleiste - ein fokussiertes
         # Text-Input wuerde die Buchstaben-Shortcuts aus dem Footer ausblenden.
         self.call_after_refresh(self._focus_table)
+        # Footer-Taste blinken lassen, die als naechstes dran ist (o bzw. c).
+        self.set_interval(0.6, self._tick_attention)
         if self._sitemap is not None:
             self.post_message(
                 LogMessage.info(f"Sitemap geladen: {self._sitemap} - 'c' zum Scannen")
@@ -433,6 +437,28 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
     def _focus_table(self) -> None:
         with contextlib.suppress(Exception):
             self.query_one("#results-data", DataTable).focus()
+
+    def _tick_attention(self) -> None:
+        # Welche Footer-Taste soll Aufmerksamkeit ziehen? o (Sitemap waehlen)
+        # solange keine da ist, danach c (Scan) bis zum ersten Scan.
+        if self._sitemap is None:
+            target = "choose_sitemap"
+        elif not self._scanning and not self.query_one("#results", FindingsTable).findings:
+            target = "scan"
+        else:
+            target = ""
+        self._attention_on = not self._attention_on if target else False
+        for action in ("choose_sitemap", "scan"):
+            key = self._footer_key(action)
+            if key is not None:
+                key.set_class(action == target and self._attention_on, "-attention")
+
+    def _footer_key(self, action: str) -> Widget | None:
+        with contextlib.suppress(Exception):
+            for footer_key in self.query("FooterKey"):
+                if getattr(footer_key, "action", "") == action:
+                    return footer_key
+        return None
 
     def on_key(self, event: events.Key) -> None:
         # Esc im Filterfeld gibt den Fokus zurueck an die Tabelle -> Footer wieder voll.

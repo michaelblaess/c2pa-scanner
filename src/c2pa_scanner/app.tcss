@@ -46,3 +46,12 @@ Screen {
 #log.hidden {
     display: none;
 }
+
+/* Attention-Blink: der Timer schaltet .-attention an/aus (funktioniert auch auf
+   Windows Terminal, wo ANSI text-style: blink ignoriert wird). */
+Footer FooterKey.-attention .footer-key--key,
+Footer FooterKey.-attention .footer-key--description {
+    background: $accent;
+    color: auto;
+    text-style: bold;
+}
