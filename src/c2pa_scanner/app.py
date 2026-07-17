@@ -194,7 +194,11 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
             )
 
     async def on_unmount(self) -> None:
-        # Sidecar-Browser der Seiten-Vorschau sauber schliessen.
+        # Laufende Vorschau-Worker zuerst abbrechen, damit sie das capture()-Lock
+        # freigeben, dann den Sidecar-Browser sauber schliessen. Sonst faellt
+        # close() mitten in einen offenen Screenshot-Call.
+        with contextlib.suppress(Exception):
+            self.workers.cancel_group(self, "page-preview")
         if self._preview_service is not None:
             await self._preview_service.close()
 
