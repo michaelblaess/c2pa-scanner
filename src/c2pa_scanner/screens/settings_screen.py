@@ -6,7 +6,7 @@ from pathlib import Path
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, VerticalScroll
-from textual.widgets import Checkbox, Input, Label, Static, TabPane
+from textual.widgets import Checkbox, Input, Label, Select, Static, TabPane
 from textual_widgets import BaseSettingsScreen
 
 from c2pa_scanner.infrastructure.settings import JsonSettingsStore
@@ -105,6 +105,26 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
                 "KI-Label auf/am Bild dargestellt wird. Nur mit grafischer Vorschau lesbar.",
                 classes="hint",
             )
+        with TabPane("Export", id="settings-tab-export"), VerticalScroll():
+            with Horizontal(classes="settings-row"):
+                yield Label("JIRA-Tabellenformat")
+                yield Select(
+                    [
+                        ("Markdown (Jira Cloud)", "markdown"),
+                        ("Wiki Markup (Server/DC)", "wiki"),
+                    ],
+                    value="wiki" if self._settings.get("jira_format") == "wiki" else "markdown",
+                    allow_blank=False,
+                    id="set-jira-format",
+                )
+            yield Static(
+                "Format für den JIRA-Export (Taste j). Markdown = Jira Cloud "
+                "(eon-energy.atlassian.net): eine Markdown-Tabelle wird beim Einfügen ins "
+                "Kommentarfeld automatisch in eine echte Tabelle umgewandelt. Das alte Wiki "
+                "Markup versteht der Cloud-Editor nicht mehr. Wiki Markup = ältere "
+                "Jira-Server/Data-Center-Instanzen.",
+                classes="hint",
+            )
 
     @staticmethod
     def _clamp_int(value: str, default: int, lo: int, hi: int) -> int:
@@ -118,6 +138,8 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
         settings["graphics_preview"] = self.query_one("#set-graphics", Checkbox).value
         settings["browser_render"] = self.query_one("#set-render", Checkbox).value
         settings["page_preview"] = self.query_one("#set-page-preview", Checkbox).value
+        jira_format = self.query_one("#set-jira-format", Select).value
+        settings["jira_format"] = jira_format if jira_format == "wiki" else "markdown"
         settings["min_image_size"] = self._clamp_int(
             self.query_one("#set-min-size", Input).value, 0, 0, 100000
         )

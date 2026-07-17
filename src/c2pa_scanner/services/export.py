@@ -44,7 +44,29 @@ def build_json(findings: Sequence[ImageFinding]) -> str:
     return json.dumps(data, indent=2, ensure_ascii=False)
 
 
-def build_jira(findings: Sequence[ImageFinding]) -> str:
+def _md_cell(text: str) -> str:
+    # Pipe kollidiert mit dem Markdown-Zellseparator, Zeilenumbruch bricht die Zeile
+    return text.replace("|", "\\|").replace("\r", "").replace("\n", "<br>")
+
+
+def _build_jira_markdown(findings: Sequence[ImageFinding]) -> str:
+    lines = [
+        "| Status | Herkunft | Bild | Größe | Seite |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for f in findings:
+        cells = [
+            _STATUS[f.verdict],
+            _herkunft(f) or "-",
+            f.image_url,
+            _size(f) or "-",
+            f.page_url,
+        ]
+        lines.append(f"| {' | '.join(_md_cell(c) for c in cells)} |")
+    return "\n".join(lines)
+
+
+def _build_jira_wiki(findings: Sequence[ImageFinding]) -> str:
     lines = ["||Status||Herkunft||Bild||Größe||Seite||"]
     for f in findings:
         lines.append(
@@ -52,6 +74,17 @@ def build_jira(findings: Sequence[ImageFinding]) -> str:
             f"|{_size(f) or '-'}|{f.page_url}|"
         )
     return "\n".join(lines)
+
+
+def build_jira(findings: Sequence[ImageFinding], fmt: str = "markdown") -> str:
+    """Baut die JIRA-Tabelle.
+
+    fmt='markdown' erzeugt eine GitHub-Flavored-Markdown-Tabelle fuer Jira Cloud
+    (wird beim Einfuegen automatisch in eine ADF-Tabelle konvertiert - das alte
+    Wiki Markup versteht der Cloud-Editor nicht mehr). fmt='wiki' erzeugt das
+    klassische Wiki Markup fuer Jira Server/DC.
+    """
+    return _build_jira_wiki(findings) if fmt.lower() == "wiki" else _build_jira_markdown(findings)
 
 
 def build_text(findings: Sequence[ImageFinding]) -> str:

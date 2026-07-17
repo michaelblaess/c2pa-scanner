@@ -126,6 +126,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self._graphics_pref = bool(settings.get("graphics_preview", False))
         self._render = bool(settings.get("browser_render", False))
         self._page_preview = bool(settings.get("page_preview", False))
+        self._jira_format = str(settings.get("jira_format", "markdown"))
         self._min_size = max(0, self._read_int(settings, "min_image_size", 0))
         self._concurrency = max(1, self._read_int(settings, "concurrency", 8))
         self._timeout = max(1, self._read_int(settings, "timeout", 30))
@@ -626,8 +627,9 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
             return
         from c2pa_scanner.services.export import build_jira
 
-        self.copy_to_clipboard(build_jira(findings))
-        self.notify(f"{len(findings)} Zeilen als JIRA-Tabelle kopiert")
+        self.copy_to_clipboard(build_jira(findings, self._jira_format))
+        label = "Wiki" if self._jira_format.lower() == "wiki" else "Markdown"
+        self.notify(f"{len(findings)} Zeilen als JIRA-Tabelle ({label}) kopiert")
 
     def action_export_clip(self) -> None:
         findings = self._shown_findings()
@@ -697,6 +699,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self._min_size = max(0, self._read_int(new_settings, "min_image_size", self._min_size))
         self._concurrency = max(1, self._read_int(new_settings, "concurrency", self._concurrency))
         self._timeout = max(1, self._read_int(new_settings, "timeout", self._timeout))
+        self._jira_format = str(new_settings.get("jira_format", self._jira_format))
 
     def action_show_about(self) -> None:
         self.push_screen(
