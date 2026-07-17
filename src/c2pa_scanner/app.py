@@ -36,6 +36,7 @@ from textual_widgets import (
 
 from c2pa_scanner import __author__, __version__, __year__
 from c2pa_scanner.domain.models import ImageFinding, Verdict
+from c2pa_scanner.infrastructure.asyncio_guard import install_playwright_shutdown_guard
 from c2pa_scanner.infrastructure.history import HistoryEntry, HistoryStore
 from c2pa_scanner.infrastructure.settings import JsonSettingsStore
 from c2pa_scanner.services.preview_service import PreviewService
@@ -181,6 +182,8 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         yield Footer()
 
     def on_mount(self) -> None:
+        # Verwaiste Playwright-Futures beim Beenden abfangen (Sidecar/Renderer).
+        install_playwright_shutdown_guard(asyncio.get_running_loop())
         self.query_one("#log", LogPanel).border_title = " Log-Ausgabe "
         self._update_stats()
         # Fokus auf die Tabelle, NICHT auf die Suchleiste - ein fokussiertes
