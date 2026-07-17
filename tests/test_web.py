@@ -56,6 +56,20 @@ class TestImageExtraction:
         urls = extract_image_urls_from_html(html, "https://ex.com/seite")
         assert "https://ex.com/Media/images/hero.jpg?sfvrsn=abc&w=644" in urls
 
+    def test_ignores_quot_masked_json_blob(self) -> None:
+        # Sitefinity Comments/Reviews-Widget bettet ein &quot;-maskiertes JSON-Config-
+        # Objekt ein. Der Regex darf nicht ueber die &quot;-Grenzen hinweg ein
+        # JSON-Fragment bis zum naechsten Bildsuffix als URL einfangen (HTTP 400).
+        html = (
+            '<div data-config="{&quot;url&quot;:&quot;/RestApi/comments-api/&quot;,'
+            '&quot;auth&quot;:&quot;/RestApi/session/is-authenticated&quot;,'
+            '&quot;userAvatarImageUrl&quot;:&quot;/SFRes/images/Default.Photo.png&quot;}">'
+            '</div>'
+        )
+        urls = extract_image_urls_from_html(html, "https://ex.com/glossar/phev")
+        assert "https://ex.com/SFRes/images/Default.Photo.png" in urls
+        assert all("RestApi" not in u for u in urls)
+
 
 class TestReadBytes:
     def test_detects_ai(self, tmp_path: Path) -> None:

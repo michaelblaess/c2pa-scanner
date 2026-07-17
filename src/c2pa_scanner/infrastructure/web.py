@@ -73,7 +73,11 @@ def extract_image_urls_from_html(html: str, base_url: str) -> list[str]:
     parser.feed(html)
     for src in parser.srcs:
         add(src)
-    for match in _IMG_URL_RE.finditer(html):
+    # Entities VOR der Regex-Suche aufloesen: in eingebettetem JSON stehen die
+    # String-Grenzen als &quot; im HTML. Roh wuerde die Zeichenklasse ueber diese
+    # &quot; hinweglaufen und JSON-Fragmente (z.B. /RestApi/comments-api/... bis
+    # zum naechsten Bildsuffix) als eine Muell-URL einfangen.
+    for match in _IMG_URL_RE.finditer(unescape(html)):
         add(match.group(0))
 
     return result
