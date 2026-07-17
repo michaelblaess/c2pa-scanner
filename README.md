@@ -82,7 +82,9 @@ signature, so scan the original master where possible.
 - **Page preview** (optional): below the image, a screenshot of the rendered source page scrolled to the
   image - so you can check without leaving the tool whether an AI label is shown on/near the image.
 - **Filter & sorting**, an "AI images only" toggle, **export** via right-click (JSON, JIRA table, plain
-  text) and **test-image signing** as a positive fixture.
+  text) and **test-image signing** as a positive fixture. The JIRA table comes in two formats
+  (Settings -> Export): **Markdown** for Jira Cloud (converts to a real table when pasted into a
+  comment) and **Wiki Markup** for older Jira Server/Data Center instances.
 
 ### Other detection methods - and why they are (not yet) implemented
 

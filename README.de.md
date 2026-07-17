@@ -83,7 +83,10 @@ Jedes Verkleinern/Zuschneiden bricht die C2PA-Signatur - also möglichst das Ori
 - **Seiten-Vorschau** (optional): unter dem Bild ein Screenshot der gerenderten Fundseite, zum Bild
   gescrollt - so siehst Du ohne Absprung, ob ein KI-Label auf/am Bild dargestellt wird.
 - **Filter & Sortierung**, Toggle "Nur KI-Bilder", **Export** per Rechtsklick (JSON, JIRA-Tabelle,
-  Klartext) und **Testbild-Signierung** als Positiv-Testfall.
+  Klartext) und **Testbild-Signierung** als Positiv-Testfall. Die JIRA-Tabelle gibt es in zwei
+  Formaten (Einstellungen -> Export): **Markdown** für Jira Cloud (wandelt sich beim Einfügen ins
+  Kommentarfeld automatisch in eine echte Tabelle um) und **Wiki Markup** für ältere
+  Jira-Server/Data-Center-Instanzen.
 
 ### Andere Erkennungsmethoden - und warum (noch) nicht implementiert
 
