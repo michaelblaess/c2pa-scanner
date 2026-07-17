@@ -251,12 +251,20 @@ class PreviewService:
         return self._browser
 
     async def close(self) -> None:
-        """Schliesst Browser und Playwright-Instanz best-effort."""
-        if self._browser is not None:
-            with contextlib.suppress(Exception):
-                await self._browser.close()
-            self._browser = None
-        if self._playwright is not None:
-            with contextlib.suppress(Exception):
-                await self._playwright.stop()
-            self._playwright = None
+        """Schliesst Browser und Playwright-Instanz best-effort.
+
+        Nimmt dasselbe Lock wie capture(), damit der Browser nicht mitten in
+        einem laufenden Screenshot-Call geschlossen wird. Sonst faellt close()
+        dem noch offenen Protokoll-Call in den Ruecken und dessen Playwright-
+        Future bleibt mit TargetClosedError unabgeholt ("Future exception was
+        never retrieved" beim Beenden).
+        """
+        async with self._lock:
+            if self._browser is not None:
+                with contextlib.suppress(Exception):
+                    await self._browser.close()
+                self._browser = None
+            if self._playwright is not None:
+                with contextlib.suppress(Exception):
+                    await self._playwright.stop()
+                self._playwright = None
