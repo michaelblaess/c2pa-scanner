@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "c2pa-scanner"
-version = "0.2.1"
+version = "0.2.2"
 description = "Detect C2PA provenance / AI-generated images in website sitemaps (EU AI Act Art. 50)"
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
