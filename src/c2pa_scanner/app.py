@@ -39,6 +39,7 @@ from textual_widgets import (
 
 from c2pa_scanner import __author__, __version__, __year__
 from c2pa_scanner.domain.models import ImageFinding, Verdict
+from c2pa_scanner.i18n import current_language, t
 from c2pa_scanner.infrastructure.asyncio_guard import install_playwright_shutdown_guard
 from c2pa_scanner.infrastructure.c2pa_reader import (
     C2paUnavailableError,
@@ -54,26 +55,6 @@ from c2pa_scanner.widgets.preview_panel import PreviewPanel
 _USER_AGENT = "Mozilla/5.0 (c2pa-scanner)"
 _BAR_WIDTH = 24
 
-_ABOUT_DESCRIPTION = (
-    "Prüft Bilder auf ihre C2PA-/KI-Herkunft.\n\n"
-    "Es prüft die Bilder Deiner EIGENEN Seiten (per Sitemap) - ausdrücklich NICHT\n"
-    "zum Durchleuchten fremder Seiten oder für Abmahnungen. Der C2PA-Scan ist nur\n"
-    "ein Indiz, kein Rechtsgutachten.\n\n"
-    "Status-Kategorien in der Tabelle:\n"
-    "  KI-generiert   - Bild vollständig von einer KI erzeugt\n"
-    "  KI-bearbeitet  - echtes Material mit KI kombiniert oder verändert\n"
-    "                   (z.B. generativer Fill, Composite aus echt + KI)\n"
-    "  C2PA (kein KI) - Herkunft signiert, aber ohne KI-Marker (z.B. Kamera)\n"
-    "  kein C2PA      - keine Herkunftsdaten im Bild gefunden\n\n"
-    "KI-generiert und KI-bearbeitet sind beide kennzeichnungspflichtig; die\n"
-    "Unterscheidung sagt nur, wie stark KI im Spiel war (IPTC digitalSourceType).\n\n"
-    "Wichtig: Der Scan ist ein positives Indiz FÜR KI (wenn ein Marker da ist),\n"
-    "aber kein Beweis dagegen. Fehlt der Marker oder ganz das C2PA-Manifest,\n"
-    "kann trotzdem KI benutzt worden sein - Herkunftsdaten zeigen nur, was das\n"
-    "signierende Tool eingetragen hat.\n\n"
-    "Rechtsgrundlage: EU AI Act (VO 2024/1689), Artikel 50 - gültig ab 2. August 2026.\n"
-    "Gesetzestext: https://eur-lex.europa.eu/eli/reg/2024/1689/oj"
-)
 
 
 def _url_name(url: str) -> str:
@@ -94,35 +75,27 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
     CSS_PATH = "app.tcss"
     TITLE = f"c2pa-scanner v{__version__}"
 
+    # Die Beschriftungen stehen hier nur als Platzhalter: BINDINGS wird beim
+    # Import der Klasse ausgewertet, also bevor eine Sprache geladen ist. Die
+    # uebersetzten Texte setzt _init_bindings() zur Laufzeit.
     BINDINGS = [
-        Binding("o,O", "choose_sitemap", "URL eingeben", key_display="o",
-                tooltip="Sitemap-URL eingeben (http/https)"),
-        Binding("m,M", "load_sitemap_file", "Sitemap laden", key_display="m",
-                tooltip="Lokale sitemap.xml öffnen"),
-        Binding("c,C", "scan", "Scan", key_display="c",
-                tooltip="Die aktuelle Sitemap (erneut) crawlen und Bilder prüfen"),
-        Binding("e,E", "toggle_ai", "Nur KI-Bilder", key_display="e",
-                tooltip="Nur KI-Bilder anzeigen / alle anzeigen"),
-        Binding("d,D", "c2pa_details", "C2PA-Details", key_display="d",
-                tooltip="Das rohe C2PA-Manifest des markierten Bildes als Dialog anzeigen"),
-        Binding("h,H", "show_history", "History", key_display="h",
-                tooltip="Frühere Sitemaps auswählen"),
-        Binding("slash", "focus_filter", "Filter", key_display="/", show=False,
-                tooltip="Filter-Eingabe fokussieren"),
-        Binding("t,T", "make_testimage", "Testbild erzeugen", key_display="t",
-                tooltip="Ein signiertes C2PA-Testbild erzeugen und speichern"),
-        Binding("l,L", "toggle_log", "Log", key_display="l",
-                tooltip="Log-Panel ein-/ausblenden"),
-        Binding("s,S", "show_settings", "Settings", key_display="s",
-                tooltip="Einstellungen öffnen (u.a. Proxy-URL)"),
-        Binding("i,I", "show_about", "Info", key_display="i",
-                tooltip="Über c2pa-scanner"),
-        Binding("q,Q", "quit", "Beenden", key_display="q", tooltip="App beenden"),
+        Binding("o,O", "choose_sitemap", "placeholder", key_display="o"),
+        Binding("m,M", "load_sitemap_file", "placeholder", key_display="m"),
+        Binding("c,C", "scan", "placeholder", key_display="c"),
+        Binding("e,E", "toggle_ai", "placeholder", key_display="e"),
+        Binding("d,D", "c2pa_details", "placeholder", key_display="d"),
+        Binding("h,H", "show_history", "placeholder", key_display="h"),
+        Binding("slash", "focus_filter", "placeholder", key_display="/", show=False),
+        Binding("t,T", "make_testimage", "placeholder", key_display="t"),
+        Binding("l,L", "toggle_log", "placeholder", key_display="l"),
+        Binding("s,S", "show_settings", "placeholder", key_display="s"),
+        Binding("i,I", "show_about", "placeholder", key_display="i"),
+        Binding("q,Q", "quit", "placeholder", key_display="q"),
     ]
 
     def __init__(self, start_sitemap: str | None = None) -> None:
         super().__init__()
-        self.crash_guard_lang = "de"
+        self.crash_guard_lang = current_language()
         register_all(self)
 
         self._settings_store = JsonSettingsStore()
@@ -166,17 +139,46 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self._export_content = ""
         self._preview_service: PreviewService | None = None
 
+        self._init_bindings()
+
+    def _init_bindings(self) -> None:
+        """Setzt die uebersetzten Beschriftungen und Tooltips aller Tastenkuerzel."""
+        labels = {
+            "choose_sitemap": "binding.choose_sitemap",
+            "load_sitemap_file": "binding.load_sitemap_file",
+            "scan": "binding.scan",
+            "toggle_ai": "binding.toggle_ai",
+            "c2pa_details": "binding.c2pa_details",
+            "show_history": "binding.history",
+            "focus_filter": "binding.filter",
+            "make_testimage": "binding.make_testimage",
+            "toggle_log": "binding.toggle_log",
+            "show_settings": "binding.settings",
+            "show_about": "binding.about",
+            "quit": "binding.quit",
+        }
+        for key, bindings_list in self._bindings.key_to_bindings.items():
+            for i, binding in enumerate(bindings_list):
+                base = labels.get(binding.action)
+                if base is None:
+                    continue
+                self._bindings.key_to_bindings[key][i] = dataclasses.replace(
+                    binding,
+                    description=t(base),
+                    tooltip=t(f"{base}_tip"),
+                )
+
     def compose(self) -> ComposeResult:
         yield Header()
         yield InfoHeader(
             [
-                InfoItem("pages", "Seiten", "0"),
-                InfoItem("images", "Bilder", "0"),
-                InfoItem("label", "KI-Bilder", "0"),
-                InfoItem("errors", "Fehler", "0"),
+                InfoItem("pages", t("stats.pages"), "0"),
+                InfoItem("images", t("stats.images"), "0"),
+                InfoItem("label", t("stats.ai"), "0"),
+                InfoItem("errors", t("stats.errors"), "0"),
             ],
             columns=4,
-            title="Sitemap: -",
+            title=t("app.subtitle_none"),
             separator="  |  ",
             id="stats",
         )
@@ -194,13 +196,13 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
                     classes="" if self._page_preview else "hidden",
                 )
         yield HorizontalSplitter(target_id="main", min_size=8, id="logsplit")
-        yield LogPanel(lang="de", export_name="c2pa-scanner", id="log")
+        yield LogPanel(lang=current_language(), export_name="c2pa-scanner", id="log")
         yield Footer()
 
     def on_mount(self) -> None:
         # Verwaiste Playwright-Futures beim Beenden abfangen (Sidecar/Renderer).
         install_playwright_shutdown_guard(asyncio.get_running_loop())
-        self.query_one("#log", LogPanel).border_title = " Log-Ausgabe "
+        self.query_one("#log", LogPanel).border_title = t("app.log_title")
         self._update_stats()
         # Fokus auf die Tabelle, NICHT auf die Suchleiste - ein fokussiertes
         # Text-Input wuerde die Buchstaben-Shortcuts aus dem Footer ausblenden.
@@ -209,7 +211,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self.set_interval(0.6, self._tick_attention)
         if self._sitemap is not None:
             self.post_message(
-                LogMessage.info(f"Sitemap geladen: {self._sitemap} - 'c' zum Scannen")
+                LogMessage.info(t("log.sitemap_loaded", sitemap=self._sitemap))
             )
         self._ask_disclaimer()
 
@@ -220,7 +222,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self.push_screen(
             DisclaimerScreen(
                 app_name=f"c2pa-scanner {__version__}",
-                lang="de",
+                lang=current_language(),
                 author=__author__,
                 footer=f"© {__year__} {__author__} · github.com/michaelblaess/c2pa-scanner",
             ),
@@ -247,7 +249,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
 
     def action_scan(self) -> None:
         if self._sitemap is None:
-            self.notify("Keine Sitemap - mit 'o' eine URL eingeben oder 'h' für History.",
+            self.notify(t("notify.no_sitemap"),
                         severity="warning")
             return
         if self._scanning:
@@ -268,7 +270,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self.query_one("#preview", PreviewPanel).show_bytes(None, "")
         self.query_one("#page-preview", PreviewPanel).show_bytes(None, "")
         self._update_stats()
-        self.post_message(LogMessage.info(f"Scan: {sitemap}"))
+        self.post_message(LogMessage.info(t("log.scan_start", sitemap=sitemap)))
         self._progress_timer = self.set_interval(0.3, self._tick_progress)
 
         # Fehlt die native Bibliothek, waere JEDES Ergebnis still falsch-negativ
@@ -277,15 +279,12 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         try:
             ensure_c2pa_available()
         except C2paUnavailableError as exc:
-            self.post_message(LogMessage.error(f"C2PA-Bibliothek nicht ladbar: {exc}"))
+            self.post_message(LogMessage.error(t("log.c2pa_unavailable", error=exc)))
             self.post_message(
-                LogMessage.error(
-                    "Scan abgebrochen - ohne die native Bibliothek würde jedes Bild "
-                    "fälschlich als 'kein C2PA' gewertet."
-                )
+                LogMessage.error(t("log.scan_aborted"))
             )
             self.notify(
-                "C2PA-Bibliothek fehlt - Scan abgebrochen. Details im Log ('l').",
+                t("notify.c2pa_missing"),
                 severity="error",
                 timeout=10,
             )
@@ -324,8 +323,8 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
                 respect_robots=self._respect_robots,
             )
         except Exception as exc:  # noqa: BLE001 - Fehler dem User zeigen, nicht crashen
-            self.post_message(LogMessage.error(f"Scan-Fehler: {exc}"))
-            self.notify(f"Scan fehlgeschlagen: {exc}", severity="error")
+            self.post_message(LogMessage.error(t("log.scan_error", error=exc)))
+            self.notify(t("notify.scan_failed", error=exc), severity="error")
             self._end_scan(table)
             return
 
@@ -350,7 +349,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
                 f"Fertig: {len(findings)} Bilder, {needs} Label-pflichtig, {errors} Fehler"
             )
         )
-        self.notify(f"{len(findings)} Bilder, {needs} KI-Label nötig")
+        self.notify(t("notify.scan_done", count=len(findings), needs=needs))
         self._end_scan(table)
 
         from c2pa_scanner.screens.scan_summary import ScanSummaryScreen
@@ -379,7 +378,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
             return False
         from c2pa_scanner.screens.proxy_warning import ProxyWarningScreen
 
-        self.post_message(LogMessage.warning(f"Proxy/Gateway erkannt: {detection.host}"))
+        self.post_message(LogMessage.warning(t("log.proxy_detected", host=detection.host)))
         self.push_screen(ProxyWarningScreen(detection))
         return True
 
@@ -395,7 +394,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
     def _tick_progress(self) -> None:
         if not self._phase:
             return
-        label = "Crawle Seiten" if self._phase == "pages" else "Prüfe Bilder"
+        label = t("progress.pages") if self._phase == "pages" else t("progress.images")
         bar = _progress_bar(self._prog_done, self._prog_total)
         self.sub_title = f"{label} {bar} {self._prog_done}/{self._prog_total}"
 
@@ -479,7 +478,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
     def action_c2pa_details(self) -> None:
         finding = self._current_finding
         if finding is None:
-            self.notify("Keine Zeile markiert.", severity="warning")
+            self.notify(t("notify.no_row"), severity="warning")
             return
         self._show_c2pa_details(finding.image_url, _url_name(finding.image_url))
 
@@ -527,7 +526,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         current = self._sitemap or ""
         initial = current if current.lower().startswith(("http://", "https://")) else ""
         self.push_screen(
-            UrlInputScreen(initial=initial, lang="de"),
+            UrlInputScreen(initial=initial, lang=current_language()),
             callback=self._on_sitemap_entered,
         )
 
@@ -604,7 +603,9 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         except Exception as exc:  # noqa: BLE001 - Fehler dem User zeigen, nicht crashen
             self.call_from_thread(self.notify, f"Fehler beim Erstellen: {exc}", severity="error")
             return
-        self.call_from_thread(self.post_message, LogMessage.success(f"Testbild erstellt: {dest}"))
+        self.call_from_thread(
+            self.post_message, LogMessage.success(t("log.testimage_created", path=dest))
+        )
         self.call_from_thread(self.notify, f"Testbild erstellt: {dest.name}")
 
     # --- Log / Settings / About --------------------------------------------
@@ -626,7 +627,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
                         binding, description=label
                     )
         self.refresh_bindings()
-        self.notify("Nur KI-Bilder" if new_state else "Alle Bilder")
+        self.notify(t("notify.only_ai") if new_state else t("notify.all_images"))
 
     # --- Kontextmenue / Export ---------------------------------------------
 
@@ -667,7 +668,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
 
     def action_export_json(self) -> None:
         if not self._shown_findings():
-            self.notify("Nichts zu exportieren.", severity="warning")
+            self.notify(t("notify.nothing_to_export"), severity="warning")
             return
         self.push_screen(
             FileSave(location=str(Path.cwd()), default_file="c2pa-findings.json"),
@@ -683,31 +684,31 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         try:
             Path(target).write_text(content, encoding="utf-8")
         except OSError as exc:
-            self.notify(f"Speichern fehlgeschlagen: {exc}", severity="error")
+            self.notify(t("notify.save_failed", error=exc), severity="error")
             return
-        self.post_message(LogMessage.success(f"JSON-Export: {target}"))
-        self.notify(f"Exportiert: {Path(target).name}")
+        self.post_message(LogMessage.success(t("log.json_export", path=target)))
+        self.notify(t("notify.exported", name=Path(target).name))
 
     def action_export_jira(self) -> None:
         findings = self._shown_findings()
         if not findings:
-            self.notify("Nichts zu exportieren.", severity="warning")
+            self.notify(t("notify.nothing_to_export"), severity="warning")
             return
         from c2pa_scanner.services.export import build_jira
 
         self.copy_to_clipboard(build_jira(findings, self._jira_format))
         label = "Wiki" if self._jira_format.lower() == "wiki" else "Markdown"
-        self.notify(f"{len(findings)} Zeilen als JIRA-Tabelle ({label}) kopiert")
+        self.notify(t("notify.jira_copied", count=len(findings), format=label))
 
     def action_export_clip(self) -> None:
         findings = self._shown_findings()
         if not findings:
-            self.notify("Nichts zu exportieren.", severity="warning")
+            self.notify(t("notify.nothing_to_export"), severity="warning")
             return
         from c2pa_scanner.services.export import build_text
 
         self.copy_to_clipboard(build_text(findings))
-        self.notify(f"{len(findings)} Zeilen als Text kopiert")
+        self.notify(t("notify.text_copied", count=len(findings)))
 
     def action_focus_filter(self) -> None:
         with contextlib.suppress(Exception):  # Fokus ist unkritisch
@@ -755,7 +756,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         from c2pa_scanner.screens.settings_screen import SettingsScreen
 
         self.push_screen(
-            SettingsScreen(self._settings_store.load(), lang="de"),
+            SettingsScreen(self._settings_store.load(), lang=current_language()),
             callback=self._on_settings_closed,
         )
 
@@ -786,9 +787,9 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
                 version=__version__,
                 author=__author__,
                 release=__year__,
-                description=_ABOUT_DESCRIPTION,
+                description=t("about.description"),
                 license="Apache-2.0",
-                lang="de",
+                lang=current_language(),
                 url="https://www.michaelblaess.de/",
                 homepage_url="https://github.com/michaelblaess/c2pa-scanner",
             )

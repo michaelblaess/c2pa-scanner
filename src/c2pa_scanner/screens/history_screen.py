@@ -9,6 +9,7 @@ from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Button, DataTable, Static
 
+from c2pa_scanner.i18n import t
 from c2pa_scanner.infrastructure.history import HistoryEntry
 
 
@@ -28,8 +29,8 @@ class HistoryScreen(ModalScreen[str | None]):
     """
 
     BINDINGS = [
-        Binding("escape", "cancel", "Schließen"),
-        Binding("enter", "select", "Auswählen"),
+        Binding("escape", "cancel", t("common.close")),
+        Binding("enter", "select", t("common.select")),
     ]
 
     def __init__(self, entries: list[HistoryEntry]) -> None:
@@ -38,15 +39,21 @@ class HistoryScreen(ModalScreen[str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical():
-            yield Static("History - gescannte Sitemaps", id="title")
+            yield Static(t("history.title"), id="title")
             yield DataTable(id="history-table", cursor_type="row", zebra_stripes=True)
             with Horizontal(id="buttons"):
-                yield Button("Auswählen", variant="primary", id="hist-select")
-                yield Button("Schließen", variant="default", id="hist-close")
+                yield Button(t("common.select"), variant="primary", id="hist-select")
+                yield Button(t("common.close"), variant="default", id="hist-close")
 
     def on_mount(self) -> None:
         table: DataTable[str] = self.query_one("#history-table", DataTable)
-        table.add_columns("Sitemap", "Wann", "Seiten", "Bilder", "KI-Label")
+        table.add_columns(
+            t("history.col_sitemap"),
+            t("history.col_when"),
+            t("history.col_pages"),
+            t("history.col_images"),
+            t("history.col_ai"),
+        )
         for i, entry in enumerate(self._entries):
             table.add_row(
                 entry.sitemap,

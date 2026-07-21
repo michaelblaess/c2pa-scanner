@@ -9,6 +9,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Static
 
+from c2pa_scanner.i18n import t
 from c2pa_scanner.infrastructure.proxy_detect import ProxyDetection
 
 
@@ -25,7 +26,7 @@ class ProxyWarningScreen(ModalScreen[None]):
     ProxyWarningScreen #buttons { height: 3; align: center middle; margin-top: 1; }
     """
 
-    BINDINGS = [Binding("escape", "close", "Schließen")]
+    BINDINGS = [Binding("escape", "close", t("common.close"))]
 
     def __init__(self, detection: ProxyDetection) -> None:
         super().__init__()
@@ -33,19 +34,11 @@ class ProxyWarningScreen(ModalScreen[None]):
 
     def compose(self) -> ComposeResult:
         with Vertical():
-            yield Static("Proxy / Gateway erkannt", id="title")
+            yield Static(t("proxy.title"), id="title")
             with VerticalScroll():
-                yield Static(
-                    "Die Anfragen werden von einem vorgeschalteten Proxy- oder Auth-Gateway "
-                    "abgefangen und auf einen fremden Host umgeleitet:\n\n"
-                    f"  {self._detection.host}\n\n"
-                    "Dadurch werden keine echten Seiten und Bilder erreicht - der Scan bleibt "
-                    "leer.\n\n"
-                    "Trage in den Einstellungen (s) die Proxy-URL Deines Zscaler-/Corporate-"
-                    "Proxys ein (z.B. http://proxy-host:port) und starte den Scan erneut."
-                )
+                yield Static(t("proxy.body", host=self._detection.host))
             with Horizontal(id="buttons"):
-                button = Button("Schließen", variant="primary", id="proxy-close")
+                button = Button(t("common.close"), variant="primary", id="proxy-close")
                 button.can_focus = False
                 yield button
 

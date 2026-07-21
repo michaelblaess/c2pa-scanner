@@ -38,6 +38,9 @@ c2pa-scanner = "c2pa_scanner.__main__:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+c2pa_scanner = ["locale/*.json", "*.tcss"]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true

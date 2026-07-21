@@ -6,13 +6,14 @@ import json
 from collections.abc import Sequence
 
 from c2pa_scanner.domain.models import ImageFinding, Verdict
+from c2pa_scanner.i18n import t
 
 _STATUS: dict[Verdict, str] = {
-    Verdict.AI_GENERATED: "KI-generiert",
-    Verdict.AI_EDITED: "KI-bearbeitet",
-    Verdict.C2PA_OTHER: "C2PA (kein KI)",
-    Verdict.NO_C2PA: "kein C2PA",
-    Verdict.ERROR: "Fehler",
+    Verdict.AI_GENERATED: "verdict.ai_generated",
+    Verdict.AI_EDITED: "verdict.ai_edited",
+    Verdict.C2PA_OTHER: "verdict.c2pa_other",
+    Verdict.NO_C2PA: "verdict.no_c2pa",
+    Verdict.ERROR: "verdict.error",
 }
 
 
@@ -29,7 +30,7 @@ def _size(finding: ImageFinding) -> str:
 def build_json(findings: Sequence[ImageFinding]) -> str:
     data = [
         {
-            "status": _STATUS[f.verdict],
+            "status": t(_STATUS[f.verdict]),
             "verdict": f.verdict.value,
             "image_url": f.image_url,
             "page_url": f.page_url,
@@ -51,12 +52,15 @@ def _md_cell(text: str) -> str:
 
 def _build_jira_markdown(findings: Sequence[ImageFinding]) -> str:
     lines = [
-        "| Status | Herkunft | Bild | Größe | Seite |",
+        (
+            f"| {t('table.status')} | {t('table.origin')} | {t('table.image')} "
+            f"| {t('table.size')} | {t('table.page')} |"
+        ),
         "| --- | --- | --- | --- | --- |",
     ]
     for f in findings:
         cells = [
-            _STATUS[f.verdict],
+            t(_STATUS[f.verdict]),
             _herkunft(f) or "-",
             f.image_url,
             _size(f) or "-",
@@ -67,10 +71,13 @@ def _build_jira_markdown(findings: Sequence[ImageFinding]) -> str:
 
 
 def _build_jira_wiki(findings: Sequence[ImageFinding]) -> str:
-    lines = ["||Status||Herkunft||Bild||Größe||Seite||"]
+    lines = [
+        f"||{t('table.status')}||{t('table.origin')}||{t('table.image')}"
+        f"||{t('table.size')}||{t('table.page')}||"
+    ]
     for f in findings:
         lines.append(
-            f"|{_STATUS[f.verdict]}|{_herkunft(f) or '-'}|{f.image_url}"
+            f"|{t(_STATUS[f.verdict])}|{_herkunft(f) or '-'}|{f.image_url}"
             f"|{_size(f) or '-'}|{f.page_url}|"
         )
     return "\n".join(lines)
@@ -88,9 +95,12 @@ def build_jira(findings: Sequence[ImageFinding], fmt: str = "markdown") -> str:
 
 
 def build_text(findings: Sequence[ImageFinding]) -> str:
-    lines = ["Status\tHerkunft\tBild\tGröße\tSeite"]
+    header = "\t".join(
+        (t("table.status"), t("table.origin"), t("table.image"), t("table.size"), t("table.page"))
+    )
+    lines = [header]
     for f in findings:
         lines.append(
-            f"{_STATUS[f.verdict]}\t{_herkunft(f)}\t{f.image_url}\t{_size(f)}\t{f.page_url}"
+            f"{t(_STATUS[f.verdict])}\t{_herkunft(f)}\t{f.image_url}\t{_size(f)}\t{f.page_url}"
         )
     return "\n".join(lines)

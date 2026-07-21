@@ -15,6 +15,8 @@ from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 
+from c2pa_scanner.i18n import t
+
 # Typische Sitemap-Pfade fuer die Auto-Discovery (in Prioritaetsreihenfolge).
 _COMMON_SITEMAP_PATHS = (
     "/sitemap.xml",
@@ -113,7 +115,7 @@ async def discover_sitemap(
             on_log(message)
 
     origin = _origin(base_url)
-    log(f"Keine direkte Sitemap - suche automatisch für {origin} ...")
+    log(t("sitemap.searching", origin=origin))
 
     # Phase 1: robots.txt nach Sitemap-Eintraegen durchsuchen.
     try:
@@ -121,7 +123,7 @@ async def discover_sitemap(
         if response.status_code == 200:
             for candidate in _parse_robots_sitemaps(response.text):
                 if await _is_valid_sitemap(client, candidate):
-                    log(f"Sitemap gefunden (robots.txt): {candidate}")
+                    log(t("sitemap.found_robots", url=candidate))
                     return candidate
     except Exception:  # noqa: BLE001 - robots.txt ist optional
         pass
@@ -130,12 +132,11 @@ async def discover_sitemap(
     for path in _COMMON_SITEMAP_PATHS:
         candidate = f"{origin}{path}"
         if await _is_valid_sitemap(client, candidate):
-            log(f"Sitemap gefunden (Standardpfad): {candidate}")
+            log(t("sitemap.found_default", url=candidate))
             return candidate
 
     raise ValueError(
-        f"Keine Sitemap gefunden für {base_url} - bitte eine direkte "
-        f"Sitemap-URL angeben (z.B. {origin}/sitemap.xml)."
+        t("sitemap.not_found", url=base_url, origin=origin)
     )
 
 
