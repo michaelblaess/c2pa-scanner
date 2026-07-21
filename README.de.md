@@ -30,6 +30,60 @@ eingebettet) und bewertet jedes Bild: KI-generiert, KI-bearbeitet, andere Herkun
 > Gesetzestext (EUR-Lex): https://eur-lex.europa.eu/eli/reg/2024/1689/oj
 > Artikel 50 (lesbar): https://artificialintelligenceact.eu/article/50/
 
+## Last auf dem Zielsystem - bitte lesen
+
+Eine Sitemap zu crawlen heißt, **jede darin aufgeführte Seite und jedes Bild** abzurufen. Ist
+Browser-Rendering eingeschaltet, läuft jede Seite zusätzlich durch ein echtes Chromium und damit
+an den Zwischenspeichern des Servers vorbei. Auf einer großen Website kommen so schnell mehrere
+hundert Requests pro Minute zusammen - genug, um ein Produktivsystem spürbar zu verlangsamen
+oder im ungünstigsten Fall an seine Speichergrenze zu bringen.
+
+Der Scanner ist deshalb **von Haus aus gedrosselt**: 60 Requests pro Minute, Seiten, Renderings
+und Bilder zusammengezählt. Ändern kannst Du das unter *Einstellungen -> Scan* oder auf der
+Kommandozeile:
+
+```bash
+c2pa-scanner scan https://www.example.com/sitemap.xml --rate-limit 20   # schonender
+c2pa-scanner scan https://www.example.com/sitemap.xml --rate-limit 0    # ohne Limit - Vorsicht
+```
+
+Zwei Dinge, die man wissen sollte:
+
+- **"Parallele Requests" ist kein Rate-Limit.** Die Einstellung begrenzt, wie viele Abrufe
+  gleichzeitig laufen, nicht wie viele pro Minute rausgehen. Das macht allein das Rate-Limit.
+- **Mit Rendering werden nur die Seitenaufrufe gedrosselt.** Was der Browser danach selbst
+  nachlädt - Skripte, Schriften, Bilder -, zählt nicht mit. Die tatsächliche Last liegt also
+  höher als die eingestellte Zahl.
+
+`robots.txt` wird für die Seiten aus der Sitemap standardmäßig beachtet; gesperrte Seiten werden
+übersprungen und im Log ausgewiesen. Bilder werden nicht dagegen geprüft, weil sie oft auf einer
+eigenen CDN-Domain mit eigenen Regeln liegen. Für Deine eigenen Systeme lässt sich das in den
+Einstellungen abschalten - etwa für ein Testsystem, das pauschal alles sperrt.
+
+## Nutzung auf eigene Verantwortung
+
+Dieses Programm ruft Webseiten automatisiert ab und erzeugt dabei Last auf den Zielsystemen. Je
+nach Einstellung kann diese Last die eines normalen Besuchers um ein Vielfaches übersteigen und
+die Erreichbarkeit des Zielsystems beeinträchtigen.
+
+Mit der Nutzung erklären Sie:
+
+1. Sie setzen das Programm ausschließlich gegen Systeme ein, für die Ihnen eine ausdrückliche
+   Berechtigung des Betreibers vorliegt.
+2. Sie tragen die alleinige Verantwortung für den Einsatz, die gewählten Einstellungen und alle
+   daraus entstehenden Folgen.
+3. Vor einem Lauf gegen ein Produktivsystem prüfen Sie, ob die eingestellten Grenzwerte für
+   dieses System angemessen sind.
+
+Die Software wird unentgeltlich und ohne jede Gewährleistung bereitgestellt ("as is"), wie in
+Abschnitt 7 der Apache-Lizenz 2.0 beschrieben. Eine Haftung des Autors (Michael Blaess) für
+Schäden, die aus der Nutzung entstehen, ist ausgeschlossen, soweit dies gesetzlich zulässig ist.
+Unberührt bleibt die Haftung für Vorsatz und grobe Fahrlässigkeit, für Schäden aus der Verletzung
+des Lebens, des Körpers oder der Gesundheit sowie nach dem Produkthaftungsgesetz.
+
+Beim ersten Start fragt das Programm diesen Hinweis ab. Auf der Kommandozeile bestätigst Du ihn
+einmalig mit `--accept-disclaimer`.
+
 ## Verwendung
 
 ```bash
@@ -39,8 +93,11 @@ c2pa-scanner tui https://www.example.com/sitemap.xml
 
 # Sitemap crawlen und alle Bilder auf C2PA-/KI-Herkunft prüfen (auch nur die Domain -
 # die Sitemap wird dann automatisch gesucht)
-c2pa-scanner scan https://www.example.com/sitemap.xml
+c2pa-scanner scan https://www.example.com/sitemap.xml --accept-disclaimer
 c2pa-scanner scan ./sitemap.xml
+
+# Jede Seite zusätzlich in Chromium rendern (findet JS-/Shadow-DOM-Bilder, deutlich schwerer)
+c2pa-scanner scan https://www.example.com/sitemap.xml --render --rate-limit 20
 
 # Signiertes C2PA-Testbild erzeugen (Positiv-Testfall)
 c2pa-scanner make-testimage ./test-ki.jpg

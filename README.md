@@ -30,6 +30,60 @@ Firefly) and classifies each image: AI-generated, AI-edited, other provenance, o
 > Legal text (EUR-Lex): https://eur-lex.europa.eu/eli/reg/2024/1689/oj
 > Article 50 (readable): https://artificialintelligenceact.eu/article/50/
 
+## Load on the target system - please read this
+
+Crawling a sitemap means fetching **every page and every image** it lists. With browser
+rendering enabled, each page additionally goes through a real Chromium, which bypasses the
+server's caches. On a large site this quickly adds up to several hundred requests per minute and
+can noticeably degrade a production system - slower responses, in the worst case a server pushed
+to its memory limit.
+
+The scanner is therefore **rate-limited out of the box**: 60 requests per minute, counting
+pages, renderings and images together. Change it under *Settings -> Scan*, or on the command
+line:
+
+```bash
+c2pa-scanner scan https://www.example.com/sitemap.xml --rate-limit 20   # gentler
+c2pa-scanner scan https://www.example.com/sitemap.xml --rate-limit 0    # no limit - be careful
+```
+
+Two things worth knowing:
+
+- **"Parallel requests" is not a rate limit.** It caps how many requests run at the same time,
+  not how many go out per minute. Only the rate limit does that.
+- **With rendering, the limit throttles page requests only.** Whatever the browser pulls in
+  afterwards - scripts, fonts, images - is not counted, so the real load is higher than the
+  configured number.
+
+`robots.txt` is honoured by default for the pages listed in the sitemap; blocked pages are
+skipped and reported in the log. Images are not checked against it, because they often live on a
+separate CDN domain with its own rules. You can turn this off in the settings for systems of
+your own - for instance a staging site that blocks everything by default.
+
+## Use at your own risk
+
+This program retrieves web pages automatically and thereby places load on the target systems.
+Depending on its settings, that load can exceed the load of an ordinary visitor many times over
+and can impair the availability of the target system.
+
+By using it, you declare that:
+
+1. You will use this program only against systems for which you hold explicit authorisation from
+   their operator.
+2. You bear sole responsibility for its use, for the settings you choose and for all
+   consequences arising from them.
+3. Before running it against a production system, you will verify that the configured limits are
+   appropriate for that system.
+
+The software is provided free of charge and without warranty of any kind ("as is"), as set out in
+section 7 of the Apache License 2.0. The liability of the author (Michael Blaess) for damages
+arising from its use is excluded to the extent permitted by applicable law. Liability for intent
+and gross negligence, for injury to life, body or health, and under mandatory product liability
+law remains unaffected.
+
+On first start the program asks you to confirm this notice. On the command line, confirm it once
+with `--accept-disclaimer`.
+
 ## Usage
 
 ```bash
@@ -38,9 +92,13 @@ c2pa-scanner
 c2pa-scanner tui https://www.example.com/sitemap.xml
 
 # Crawl a sitemap and check every image for C2PA / AI provenance (a bare domain
-# works too - the sitemap is then discovered automatically)
-c2pa-scanner scan https://www.example.com/sitemap.xml
+# works too - the sitemap is then discovered automatically). The first run needs
+# --accept-disclaimer once; the rate limit defaults to 60 requests per minute.
+c2pa-scanner scan https://www.example.com/sitemap.xml --accept-disclaimer
 c2pa-scanner scan ./sitemap.xml
+
+# Render each page in Chromium as well (finds JS / shadow-DOM images, much heavier)
+c2pa-scanner scan https://www.example.com/sitemap.xml --render --rate-limit 20
 
 # Create a signed C2PA test image (positive test fixture)
 c2pa-scanner make-testimage ./test-ai.jpg
