@@ -11,6 +11,8 @@ import httpx
 from c2pa_scanner.domain.models import ImageFinding, Verdict
 from c2pa_scanner.infrastructure.browser import PageRenderer
 from c2pa_scanner.infrastructure.c2pa_reader import image_size, read_provenance
+from c2pa_scanner.infrastructure.rate_limit import RateLimiter
+from c2pa_scanner.infrastructure.robots import RobotsChecker
 from c2pa_scanner.infrastructure.sitemap import load_sitemap
 from c2pa_scanner.infrastructure.web import fetch_page_images
 from c2pa_scanner.services.classify import classify
@@ -45,12 +47,20 @@ class SitemapScanService:
     """Crawlt die Seiten einer Sitemap und prueft ihre Bilder auf C2PA/KI."""
 
     def __init__(
-        self, page_concurrency: int = 8, image_concurrency: int = 8, timeout: float = 30.0
+        self,
+        page_concurrency: int = 8,
+        image_concurrency: int = 8,
+        timeout: float = 30.0,
+        rate_per_minute: int = 60,
     ) -> None:
         self._page_concurrency = page_concurrency
         self._image_concurrency = image_concurrency
         self._timeout = timeout
         self._min_size = 0
+        # 0 = kein Limit. Der Limiter zaehlt ALLE Requests (Seiten, Render-Aufrufe
+        # und Bilder), weil Bilder haeufig auf derselben Maschine liegen wie die
+        # Seiten - ein reines Seiten-Limit wuerde die halbe Last durchlassen.
+        self._rate_per_minute = rate_per_minute
 
     async def scan(
         self,
@@ -64,6 +74,7 @@ class SitemapScanService:
         proxy: str = "",
         min_image_size: int = 0,
         render: bool = False,
+        respect_robots: bool = True,
     ) -> None:
         self._min_size = min_image_size
         headers = {"User-Agent": _USER_AGENT}
@@ -74,6 +85,21 @@ class SitemapScanService:
             headers=headers,
             proxy=proxy.strip() or None,
         ) as client:
+            # Last-Hinweis frueh ins Protokoll: ohne Limit ist die Rate allein
+            # davon abhaengig, wie schnell das Ziel antwortet.
+            if self._rate_per_minute > 0:
+                on_log(
+                    f"Rate-Limit aktiv: max. {self._rate_per_minute} Requests/Minute "
+                    f"(Seiten, Renderings und Bilder zusammen)"
+                )
+            else:
+                parallel = self._page_concurrency + self._image_concurrency
+                on_log(
+                    f"Kein Rate-Limit - bis zu {parallel} gleichzeitige Requests, so schnell "
+                    f"wie das Ziel antwortet. Für Produktivsysteme in den Einstellungen "
+                    f"ein Rate-Limit aktivieren."
+                )
+
             on_log(f"Lade Sitemap: {source}")
             pages = await load_sitemap(
                 client, source, on_log=on_log, on_resolved=on_resolved
@@ -81,11 +107,35 @@ class SitemapScanService:
             on_pages(len(pages))
             on_log(f"{len(pages)} Seiten in der Sitemap")
 
+            # robots.txt gilt fuer die SEITEN. Bilder werden bewusst nicht geprueft:
+            # sie liegen oft auf einer CDN-Domain mit eigener robots.txt, und wer die
+            # Seite ausliefern darf, liefert das Bild ohnehin mit aus.
+            if respect_robots:
+                robots = RobotsChecker()
+                await robots.load(client, pages[0] if pages else source)
+                allowed = [url for url in pages if robots.is_allowed(url)]
+                blocked = len(pages) - len(allowed)
+                if blocked:
+                    on_log(
+                        f"robots.txt: {blocked} von {len(pages)} Seiten gesperrt "
+                        f"- werden übersprungen"
+                    )
+                    pages = allowed
+                    on_pages(len(pages))
+                else:
+                    on_log("robots.txt beachtet - keine Seite gesperrt")
+            else:
+                on_log("robots.txt wird ignoriert (Einstellung)")
+
             # Pipeline: sobald eine Seite ihre Bilder liefert, werden sie SOFORT
             # geprueft (kein Sammel-Barrier vor der Bildpruefung) -> die Tabelle
             # streamt live, waehrend noch gecrawlt wird.
             page_sem = asyncio.Semaphore(self._page_concurrency)
             image_sem = asyncio.Semaphore(self._image_concurrency)
+            # Gewartet wird INNERHALB der Semaphore: so warten hoechstens
+            # `concurrency` Tasks am Limiter, der Rest haengt am Semaphore -
+            # sonst wuerden sich tausende Bild-Tasks vorab Slots reservieren.
+            limiter = RateLimiter(self._rate_per_minute)
             seen: set[str] = set()
             seen_lock = asyncio.Lock()
             image_tasks: list[asyncio.Task[None]] = []
@@ -97,6 +147,7 @@ class SitemapScanService:
             async def check_image(image_url: str, page_url: str) -> None:
                 nonlocal skipped
                 async with image_sem:
+                    await limiter.acquire()
                     finding = await self._check_image(client, image_url, page_url)
                 if finding is None:  # zu klein -> uebersprungen
                     skipped += 1
@@ -108,6 +159,7 @@ class SitemapScanService:
             async def scan_page(page_url: str) -> None:
                 nonlocal pages_done
                 async with page_sem:
+                    await limiter.acquire()
                     try:
                         images = await fetch_page_images(client, page_url)
                     except Exception as exc:  # noqa: BLE001 - kaputte Seite darf den Lauf nicht killen
@@ -116,6 +168,9 @@ class SitemapScanService:
                     if renderer is not None:
                         # Hybrid: die per JS ins (Shadow-)DOM gerenderten Bilder
                         # ergaenzen die Regex-Treffer (Union, Reihenfolge stabil).
+                        # Das Rendering ist ein ZWEITER Zugriff auf dieselbe Seite
+                        # und zaehlt darum eigenstaendig gegen das Limit.
+                        await limiter.acquire()
                         try:
                             rendered = await renderer.image_urls(page_url)
                         except Exception as exc:  # noqa: BLE001 - Render darf den Lauf nicht killen
