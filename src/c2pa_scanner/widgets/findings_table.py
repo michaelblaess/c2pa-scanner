@@ -16,13 +16,14 @@ from textual.widgets import DataTable, Input, Static
 from textual_widgets import SearchInputWithHistory
 
 from c2pa_scanner.domain.models import ImageFinding, Verdict
+from c2pa_scanner.i18n import t
 
 _VERDICT_STYLE: dict[Verdict, tuple[str, str]] = {
-    Verdict.AI_GENERATED: ("KI-generiert", "bold red"),
-    Verdict.AI_EDITED: ("KI-bearbeitet", "bold yellow"),
-    Verdict.C2PA_OTHER: ("C2PA (kein KI)", "cyan"),
-    Verdict.NO_C2PA: ("kein C2PA", "dim"),
-    Verdict.ERROR: ("Fehler", "bold red"),
+    Verdict.AI_GENERATED: ("verdict.ai_generated", "bold red"),
+    Verdict.AI_EDITED: ("verdict.ai_edited", "bold yellow"),
+    Verdict.C2PA_OTHER: ("verdict.c2pa_other", "cyan"),
+    Verdict.NO_C2PA: ("verdict.no_c2pa", "dim"),
+    Verdict.ERROR: ("verdict.error", "bold red"),
 }
 
 _VERDICT_ORDER: dict[Verdict, int] = {
@@ -114,7 +115,7 @@ class FindingsTable(Vertical):
 
     def compose(self) -> ComposeResult:
         yield SearchInputWithHistory(
-            placeholder="Filter (Bild-URL, Status ...)",
+            placeholder=t("table.filter_placeholder"),
             icon="🔍",
             input_id="filter-bar",
             dropdown_id="filter-dropdown",
@@ -124,7 +125,13 @@ class FindingsTable(Vertical):
 
     def on_mount(self) -> None:
         table = self.query_one("#results-data", DataTable)
-        self._base_labels = ["Status", "Herkunft", "Bild", "Größe", "Seite"]
+        self._base_labels = [
+            t("table.status"),
+            t("table.origin"),
+            t("table.image"),
+            t("table.size"),
+            t("table.page"),
+        ]
         self._col_keys = list(table.add_columns(*self._base_labels))
         self._update_sort_indicator()
         self._update_count()
@@ -181,7 +188,7 @@ class FindingsTable(Vertical):
         if col_index not in self._SORT_KEYS:
             return
         if self.scanning:
-            self.app.notify("Sortierung während des Scans deaktiviert.", severity="warning")
+            self.app.notify(t("table.sort_disabled"), severity="warning")
             return
         if col_index == self._sort_col:
             self._sort_desc = not self._sort_desc
@@ -196,7 +203,7 @@ class FindingsTable(Vertical):
         needle = self.filter_text.strip().lower()
         if not needle:
             return True
-        label = _VERDICT_STYLE[finding.verdict][0].lower()
+        label = t(_VERDICT_STYLE[finding.verdict][0]).lower()
         return (
             needle in finding.image_url.lower()
             or needle in finding.page_url.lower()
@@ -205,7 +212,8 @@ class FindingsTable(Vertical):
         )
 
     def _append_row(self, finding: ImageFinding, idx: int) -> None:
-        label, style = _VERDICT_STYLE[finding.verdict]
+        label_key, style = _VERDICT_STYLE[finding.verdict]
+        label = t(label_key)
         if finding.verdict is Verdict.ERROR and finding.error:
             herkunft = finding.error
         elif finding.digital_source_type:
@@ -240,7 +248,11 @@ class FindingsTable(Vertical):
     def _update_count(self) -> None:
         total = len(self._findings)
         shown = len(self._filtered)
-        text = f"{total} Bilder" if shown == total else f"{shown} / {total} Bilder"
+        text = (
+            t("table.count_all", total=total)
+            if shown == total
+            else t("table.count_filtered", shown=shown, total=total)
+        )
         self.query_one("#results-count", Static).update(text)
 
     def _update_sort_indicator(self) -> None:

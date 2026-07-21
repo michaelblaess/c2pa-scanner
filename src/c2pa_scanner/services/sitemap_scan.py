@@ -9,6 +9,7 @@ from contextlib import AsyncExitStack
 import httpx
 
 from c2pa_scanner.domain.models import ImageFinding, Verdict
+from c2pa_scanner.i18n import t
 from c2pa_scanner.infrastructure.browser import PageRenderer
 from c2pa_scanner.infrastructure.c2pa_reader import image_size, read_provenance
 from c2pa_scanner.infrastructure.rate_limit import RateLimiter
@@ -28,11 +29,11 @@ def _failure_reason(exc: Exception) -> str:
     if isinstance(exc, httpx.HTTPStatusError):
         return f"HTTP {exc.response.status_code}"
     if isinstance(exc, httpx.TimeoutException):
-        return "Timeout"
+        return t("error.timeout")
     if isinstance(exc, httpx.ConnectError):
-        return "Verbindung fehlgeschlagen"
+        return t("error.connect")
     if isinstance(exc, httpx.ProxyError):
-        return "Proxy-Fehler"
+        return t("error.proxy")
     return type(exc).__name__
 
 
@@ -88,24 +89,17 @@ class SitemapScanService:
             # Last-Hinweis frueh ins Protokoll: ohne Limit ist die Rate allein
             # davon abhaengig, wie schnell das Ziel antwortet.
             if self._rate_per_minute > 0:
-                on_log(
-                    f"Rate-Limit aktiv: max. {self._rate_per_minute} Requests/Minute "
-                    f"(Seiten, Renderings und Bilder zusammen)"
-                )
+                on_log(t("log.rate_on", count=self._rate_per_minute))
             else:
                 parallel = self._page_concurrency + self._image_concurrency
-                on_log(
-                    f"Kein Rate-Limit - bis zu {parallel} gleichzeitige Requests, so schnell "
-                    f"wie das Ziel antwortet. Für Produktivsysteme in den Einstellungen "
-                    f"ein Rate-Limit aktivieren."
-                )
+                on_log(t("log.rate_off", count=parallel))
 
-            on_log(f"Lade Sitemap: {source}")
+            on_log(t("log.loading_sitemap", source=source))
             pages = await load_sitemap(
                 client, source, on_log=on_log, on_resolved=on_resolved
             )
             on_pages(len(pages))
-            on_log(f"{len(pages)} Seiten in der Sitemap")
+            on_log(t("log.pages_found", count=len(pages)))
 
             # robots.txt gilt fuer die SEITEN. Bilder werden bewusst nicht geprueft:
             # sie liegen oft auf einer CDN-Domain mit eigener robots.txt, und wer die
@@ -116,16 +110,13 @@ class SitemapScanService:
                 allowed = [url for url in pages if robots.is_allowed(url)]
                 blocked = len(pages) - len(allowed)
                 if blocked:
-                    on_log(
-                        f"robots.txt: {blocked} von {len(pages)} Seiten gesperrt "
-                        f"- werden übersprungen"
-                    )
+                    on_log(t("log.robots_blocked", blocked=blocked, total=len(pages)))
                     pages = allowed
                     on_pages(len(pages))
                 else:
-                    on_log("robots.txt beachtet - keine Seite gesperrt")
+                    on_log(t("log.robots_clear"))
             else:
-                on_log("robots.txt wird ignoriert (Einstellung)")
+                on_log(t("log.robots_ignored"))
 
             # Pipeline: sobald eine Seite ihre Bilder liefert, werden sie SOFORT
             # geprueft (kein Sammel-Barrier vor der Bildpruefung) -> die Tabelle
@@ -154,7 +145,7 @@ class SitemapScanService:
                     return
                 on_finding(finding)
                 if finding.verdict is Verdict.ERROR and finding.error:
-                    on_log(f"Bild fehlgeschlagen ({finding.error}): {image_url}")
+                    on_log(t("log.image_failed", reason=finding.error, url=image_url))
 
             async def scan_page(page_url: str) -> None:
                 nonlocal pages_done
@@ -163,7 +154,7 @@ class SitemapScanService:
                     try:
                         images = await fetch_page_images(client, page_url)
                     except Exception as exc:  # noqa: BLE001 - kaputte Seite darf den Lauf nicht killen
-                        on_log(f"Seite fehlgeschlagen ({_failure_reason(exc)}): {page_url}")
+                        on_log(t("log.page_failed", reason=_failure_reason(exc), url=page_url))
                         images = []
                     if renderer is not None:
                         # Hybrid: die per JS ins (Shadow-)DOM gerenderten Bilder
@@ -174,7 +165,13 @@ class SitemapScanService:
                         try:
                             rendered = await renderer.image_urls(page_url)
                         except Exception as exc:  # noqa: BLE001 - Render darf den Lauf nicht killen
-                            on_log(f"Render fehlgeschlagen ({_failure_reason(exc)}): {page_url}")
+                            on_log(
+                                t(
+                                    "log.render_failed",
+                                    reason=_failure_reason(exc),
+                                    url=page_url,
+                                )
+                            )
                             rendered = []
                         if rendered:
                             images = list(dict.fromkeys(images + rendered))
@@ -195,9 +192,9 @@ class SitemapScanService:
                     renderer = await stack.enter_async_context(
                         PageRenderer(timeout=self._timeout, proxy=proxy)
                     )
-                    on_log("Browser-Rendering aktiv (Playwright)")
+                    on_log(t("log.render_active"))
                 await asyncio.gather(*(scan_page(page_url) for page_url in pages))
-                on_log(f"{len(seen)} eindeutige Bilder gefunden")
+                on_log(t("log.images_found", count=len(seen)))
                 if image_tasks:
                     await asyncio.gather(*image_tasks)
             if skipped:

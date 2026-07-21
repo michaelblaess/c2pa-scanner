@@ -10,6 +10,8 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Static
 
+from c2pa_scanner.i18n import t
+
 
 class ScanSummaryScreen(ModalScreen[None]):
     """Zeigt die Kennzahlen des letzten Scans."""
@@ -29,8 +31,8 @@ class ScanSummaryScreen(ModalScreen[None]):
     """
 
     BINDINGS = [
-        Binding("escape", "close", "Schließen"),
-        Binding("enter", "close", "Schließen"),
+        Binding("escape", "close", t("common.close")),
+        Binding("enter", "close", t("common.close")),
     ]
 
     def __init__(
@@ -55,11 +57,11 @@ class ScanSummaryScreen(ModalScreen[None]):
 
     def compose(self) -> ComposeResult:
         with Vertical():
-            yield Static("Scan abgeschlossen", id="summary-title")
+            yield Static(t("summary.title"), id="summary-title")
             with VerticalScroll(id="summary-scroll"):
                 yield Static(self._build())
             with Horizontal(id="summary-buttons"):
-                button = Button("Schließen", variant="primary", id="sum-close")
+                button = Button(t("common.close"), variant="primary", id="sum-close")
                 button.can_focus = False
                 yield button
 
@@ -69,20 +71,22 @@ class ScanSummaryScreen(ModalScreen[None]):
 
     def _build(self) -> Text:
         text = Text()
-        text.append("Sitemap: ", style="bold")
+        text.append(t("summary.sitemap"), style="bold")
         text.append(f"{self._sitemap}\n\n")
-        self._row(text, "Seiten gecrawlt", str(self._pages))
-        self._row(text, "Bilder geprüft", str(self._images))
+        self._row(text, t("summary.pages"), str(self._pages))
+        self._row(text, t("summary.images"), str(self._images))
         self._row(
-            text, "davon mit C2PA-Manifest", str(self._c2pa),
+            text, t("summary.with_c2pa"), str(self._c2pa),
             "bold cyan" if self._c2pa else "dim",
         )
         self._row(
-            text, "davon KI (Label nötig)", str(self._ai_label),
+            text, t("summary.ai_label"), str(self._ai_label),
             "bold red" if self._ai_label else "dim",
         )
-        self._row(text, "Fehler", str(self._errors), "bold red" if self._errors else "dim")
-        self._row(text, "Dauer", f"{self._duration_s:.1f} s")
+        self._row(
+            text, t("summary.errors"), str(self._errors), "bold red" if self._errors else "dim"
+        )
+        self._row(text, t("summary.duration"), f"{self._duration_s:.1f} s")
         return text
 
     def action_close(self) -> None:

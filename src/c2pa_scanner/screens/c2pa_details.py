@@ -9,6 +9,8 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Static
 
+from c2pa_scanner.i18n import t
+
 
 class C2paDetailsScreen(ModalScreen[None]):
     """Zeigt das C2PA-Manifest (JSON) des markierten Bildes."""
@@ -25,7 +27,7 @@ class C2paDetailsScreen(ModalScreen[None]):
     C2paDetailsScreen #c2pa-buttons Button { margin: 0 1; }
     """
 
-    BINDINGS = [Binding("escape", "close", "Schließen")]
+    BINDINGS = [Binding("escape", "close", t("common.close"))]
 
     def __init__(self, title: str, manifest_json: str | None) -> None:
         super().__init__()
@@ -34,16 +36,16 @@ class C2paDetailsScreen(ModalScreen[None]):
 
     def compose(self) -> ComposeResult:
         with Vertical():
-            yield Static(f"C2PA-Manifest: {self._title}", id="c2pa-title")
+            yield Static(t("details.title", name=self._title), id="c2pa-title")
             with VerticalScroll(id="c2pa-scroll"):
                 yield Static(
-                    self._json or "Kein C2PA-Manifest in diesem Bild gefunden.",
+                    self._json or t("details.empty"),
                     id="c2pa-json",
                     markup=False,
                 )
             with Horizontal(id="c2pa-buttons"):
-                yield Button("Kopieren", id="c2pa-copy")
-                yield Button("Schließen", variant="primary", id="c2pa-close")
+                yield Button(t("common.copy"), id="c2pa-copy")
+                yield Button(t("common.close"), variant="primary", id="c2pa-close")
 
     def action_close(self) -> None:
         self.dismiss(None)
@@ -52,7 +54,7 @@ class C2paDetailsScreen(ModalScreen[None]):
     def _on_copy(self) -> None:
         if self._json:
             self.app.copy_to_clipboard(self._json)
-            self.app.notify("Manifest in die Zwischenablage kopiert.")
+            self.app.notify(t("notify.manifest_copied"))
 
     @on(Button.Pressed, "#c2pa-close")
     def _on_close(self) -> None:

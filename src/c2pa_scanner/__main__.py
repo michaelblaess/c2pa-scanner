@@ -82,13 +82,14 @@ def _disclaimer_ok(accepted_flag: bool) -> bool:
     """
     from textual_widgets import DISCLAIMER_VERSION, DisclaimerStore, disclaimer_text
 
+    from c2pa_scanner.i18n import current_language
     from c2pa_scanner.infrastructure.settings import JsonSettingsStore
 
     store = DisclaimerStore(JsonSettingsStore().path.parent / "disclaimer.json")
     if store.accepted_version == DISCLAIMER_VERSION:
         return True
     if not accepted_flag:
-        print(disclaimer_text("de", author=__author__), file=sys.stderr)
+        print(disclaimer_text(current_language(), author=__author__), file=sys.stderr)
         print(
             "\nDieser Hinweis ist zu bestaetigen, bevor ein Scan startet:\n"
             "  c2pa-scanner scan <sitemap> --accept-disclaimer",
@@ -273,8 +274,18 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _init_language() -> None:
+    """Laedt die Oberflaechensprache: gespeicherte Wahl, sonst Systemumgebung."""
+    from c2pa_scanner.i18n import detect_language, load_locale
+    from c2pa_scanner.infrastructure.settings import JsonSettingsStore
+
+    stored = JsonSettingsStore().load().get("language")
+    load_locale(stored if isinstance(stored, str) and stored else detect_language())
+
+
 def main() -> int:
     """Wertet die Kommandozeile aus und startet den gewaehlten Befehl."""
+    _init_language()
     args = build_parser().parse_args()
     if args.command is None:
         return _run_tui(None)
