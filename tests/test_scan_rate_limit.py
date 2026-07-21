@@ -74,9 +74,17 @@ def _scan_seconds(rate_per_minute: int) -> float:
 
 
 class TestScanRateLimit:
-    def test_unlimited_scan_is_fast(self) -> None:
-        """Referenzlauf: ohne Limit ist der Scan lokal in Sekundenbruchteilen durch."""
-        assert _scan_seconds(0) < 1.0
+    def test_rate_limit_adds_waiting_time(self) -> None:
+        """Vergleicht gedrosselt gegen ungedrosselt - unabhaengig von der Maschine.
+
+        Eine absolute Obergrenze fuer den ungedrosselten Lauf waere flaky: auf
+        einem ausgelasteten CI-Runner dauert derselbe Lauf ein Vielfaches. Die
+        Wartezeit des Limiters kommt dagegen additiv obendrauf, egal wie langsam
+        die Maschine ist - der Abstand zwischen beiden Laeufen ist belastbar.
+        """
+        unlimited = _scan_seconds(0)
+        limited = _scan_seconds(60)  # 1 s Abstand, fuenf Seiten -> ~4 s Warten
+        assert limited >= unlimited + 2.5
 
     def test_rate_limit_slows_the_scan_down(self) -> None:
         """1200/Minute = 50 ms Abstand, fuenf Seiten warten also >= 4 Intervalle."""
