@@ -11,6 +11,10 @@ permissions:
 jobs:
   build:
     strategy:
+      # Ein fehlgeschlagener Job darf die anderen nicht abwuergen: beim v0.2.3-Lauf
+      # brach der macOS-Selftest ab und cancelte den fast fertigen Windows-Build -
+      # das Ergebnis der anderen Plattformen war damit unbekannt.
+      fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-22.04, macos-latest]
 

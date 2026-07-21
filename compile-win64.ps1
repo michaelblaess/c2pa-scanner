@@ -100,18 +100,17 @@ Copy-Item -Recurse -Force $latest.FullName (Join-Path $browsersDir $latest.Name)
 # Rest wegwerfen; allein c2pa_c.lib (statische Linkbibliothek) waere 231 MB Ballast.
 $distC2paLibs = Join-Path $distDir "c2pa\libs"
 New-Item -ItemType Directory -Path $distC2paLibs -Force | Out-Null
-if (-not (Test-Path (Join-Path $distC2paLibs "c2pa_c.dll"))) {
-    Write-Host "c2pa_c.dll fehlt im Build - kopiere aus site-packages..." -ForegroundColor Yellow
-    $c2paDir = & $python -c "import importlib.util, pathlib; print(pathlib.Path(importlib.util.find_spec('c2pa').origin).parent)"
-    if ($LASTEXITCODE -ne 0) { throw "c2pa-Package im venv nicht gefunden" }
-    $srcLibs = Join-Path $c2paDir.Trim() "libs"
-    if (-not (Test-Path (Join-Path $srcLibs "c2pa_c.dll"))) {
-        throw "c2pa_c.dll nicht in $srcLibs gefunden"
-    }
-    Copy-Item -Force (Join-Path $srcLibs "c2pa_c.dll") $distC2paLibs
+$c2paDir = & $python -c "import importlib.util, pathlib; print(pathlib.Path(importlib.util.find_spec('c2pa').origin).parent)"
+if ($LASTEXITCODE -ne 0) { throw "c2pa-Package im venv nicht gefunden" }
+$srcLibs = Join-Path $c2paDir.Trim() "libs"
+if (-not (Test-Path (Join-Path $srcLibs "c2pa_c.dll"))) {
+    throw "c2pa_c.dll nicht in $srcLibs gefunden"
 }
+# Bedingungslos kopieren: eine Existenzpruefung per Glob war auf macOS der Fehler
+# (libc2pa_c.* matcht schon auf die von Nuitka mitgenommene .d/.rlib).
+Copy-Item -Force (Join-Path $srcLibs "c2pa_c.dll") $distC2paLibs
 # Build-Artefakte des Rust-Wheels entfernen - zur Laufzeit wird nur die DLL geladen.
-Get-ChildItem -Path $distC2paLibs -File -Include *.lib, *.pdb, *.exp, *.d, *.a -Recurse |
+Get-ChildItem -Path $distC2paLibs -File -Include *.lib, *.pdb, *.exp, *.d, *.a, *.rlib -Recurse |
     Remove-Item -Force
 
 $elapsed = [int]((Get-Date) - $started).TotalSeconds

@@ -80,23 +80,23 @@ if [ ! -d "$latest" ]; then
 fi
 cp -R "$latest" "$browsers_dir/"
 
-# c2pa/libs im Build normalisieren. Auf Windows ist belegt (Nuitka 4.1.3), dass
-# --include-package-data=c2pa die Metadateien mitnimmt, aber NICHT die native Lib.
-# Darum hier dasselbe Vorgehen: Lib sicherstellen, Build-Artefakte wegwerfen.
-# Der Selftest unten entscheidet, ob es gereicht hat.
-if ! ls "$dist_dir/c2pa/libs/"libc2pa_c.* >/dev/null 2>&1; then
-    echo "Native C2PA-Lib fehlt im Build - kopiere aus site-packages..."
-    c2pa_dir="$("$python" -c "import importlib.util, pathlib; print(pathlib.Path(importlib.util.find_spec('c2pa').origin).parent)")"
-    if [ ! -d "$c2pa_dir/libs" ]; then
-        echo "libs-Verzeichnis nicht in $c2pa_dir gefunden" >&2
-        exit 1
-    fi
-    mkdir -p "$dist_dir/c2pa/libs"
-    cp -R "$c2pa_dir/libs/." "$dist_dir/c2pa/libs/"
+# c2pa/libs im Build normalisieren. Belegt (Nuitka 4.1.3, CI-Lauf v0.2.3): Nuitka
+# nimmt aus --include-package-data=c2pa nur die Metadateien (.d/.rlib) mit, NICHT die
+# libc2pa_c.dylib - der macOS-Build scheiterte deshalb im Selftest. Die Laufzeit-Lib
+# wird darum bedingungslos aus site-packages kopiert (auf eine Existenzpruefung mit
+# Glob zu setzen war der Fehler: libc2pa_c.* matcht schon auf die .d/.rlib).
+c2pa_dir="$("$python" -c "import importlib.util, pathlib; print(pathlib.Path(importlib.util.find_spec('c2pa').origin).parent)")"
+if [ ! -d "$c2pa_dir/libs" ]; then
+    echo "libs-Verzeichnis nicht in $c2pa_dir gefunden" >&2
+    exit 1
 fi
+mkdir -p "$dist_dir/c2pa/libs"
+find "$c2pa_dir/libs" -maxdepth 1 -type f -name '*.dylib' \
+    -exec cp {} "$dist_dir/c2pa/libs/" \;
 # Build-Artefakte des Rust-Wheels entfernen - geladen wird nur die Shared Library.
 find "$dist_dir/c2pa/libs" -type f \
-    \( -name '*.lib' -o -name '*.pdb' -o -name '*.exp' -o -name '*.d' -o -name '*.a' \) \
+    \( -name '*.lib' -o -name '*.pdb' -o -name '*.exp' -o -name '*.d' \
+       -o -name '*.a' -o -name '*.rlib' \) \
     -delete 2>/dev/null || true
 
 # Empirische Abnahme: die FERTIGE Binary muss die native Bibliothek laden koennen.
