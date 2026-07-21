@@ -48,10 +48,39 @@ def _print_findings(findings: list[ImageFinding], pages: int) -> None:
     print(f"Seiten: {pages}   Bilder: {total}   KI (Label noetig): {needs}   Fehler: {errors}")
 
 
+def _cmd_selftest(_args: argparse.Namespace) -> int:
+    """Prueft, ob die native C2PA-Bibliothek in diesem Build geladen werden kann."""
+    from c2pa_scanner.infrastructure.c2pa_reader import (
+        C2paUnavailableError,
+        ensure_c2pa_available,
+    )
+
+    try:
+        ensure_c2pa_available()
+    except C2paUnavailableError as exc:
+        print(f"FEHLER: C2PA-Bibliothek nicht ladbar: {exc}", file=sys.stderr)
+        return 1
+    import c2pa
+
+    print(f"OK: C2PA-Bibliothek geladen (c2pa-python {getattr(c2pa, '__version__', '?')})")
+    return 0
+
+
 def _cmd_scan(args: argparse.Namespace) -> int:
     import asyncio
 
+    from c2pa_scanner.infrastructure.c2pa_reader import (
+        C2paUnavailableError,
+        ensure_c2pa_available,
+    )
     from c2pa_scanner.services.sitemap_scan import SitemapScanService
+
+    # Ohne die native Bibliothek waere jedes Bild still "kein C2PA" - hart abbrechen.
+    try:
+        ensure_c2pa_available()
+    except C2paUnavailableError as exc:
+        print(f"C2PA-Bibliothek nicht ladbar: {exc}", file=sys.stderr)
+        return 1
 
     findings: list[ImageFinding] = []
     pages = {"n": 0}
@@ -172,6 +201,11 @@ def main() -> int:
         help="compositeWithTrainedAlgorithmicMedia statt trainedAlgorithmicMedia",
     )
     p_make.set_defaults(func=_cmd_make_testimage)
+
+    p_self = sub.add_parser(
+        "selftest", help="Prueft, ob die native C2PA-Bibliothek geladen werden kann"
+    )
+    p_self.set_defaults(func=_cmd_selftest)
 
     args = parser.parse_args()
     if args.command is None:

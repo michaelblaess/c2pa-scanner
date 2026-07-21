@@ -43,6 +43,9 @@ if (Test-Path $distDir) { Remove-Item -Recurse -Force $distDir }
 $started = Get-Date
 
 # --include-package=c2pa: das Rust-Wheel wird lazy importiert - explizit mitnehmen.
+# --include-package-data=c2pa: c2pa/libs/c2pa_c.dll ist eine reine Datendatei, die
+# c2pa/lib.py zur Laufzeit per ctypes laedt. Ohne diese Zeile fehlt sie im Build und
+# JEDES Bild wird still als "kein C2PA" gewertet (v0.2.2-Fehler).
 $nuitkaArgs = @(
     "--standalone"
     "--assume-yes-for-downloads"
@@ -50,6 +53,7 @@ $nuitkaArgs = @(
     "--include-package=c2pa_scanner"
     "--include-package-data=c2pa_scanner"
     "--include-package=c2pa"
+    "--include-package-data=c2pa"
     "--output-dir=$outDir"
     "--output-filename=c2pa-scanner.exe"
     "--company-name=Michael Blaess"
@@ -90,8 +94,34 @@ $latest = Get-ChildItem -Path $cache -Directory -Filter "chromium_headless_shell
 if (-not $latest) { throw "Kein chromium_headless_shell im Playwright-Cache gefunden" }
 Copy-Item -Recurse -Force $latest.FullName (Join-Path $browsersDir $latest.Name)
 
+# c2pa/libs im Build normalisieren. Empirisch (Nuitka 4.1.3, c2pa-python 0.36.0):
+# --include-package-data=c2pa nimmt .d/.exp/.lib/.pdb mit, aber NICHT die .dll -
+# Nuitka behandelt DLLs gesondert. Also die Laufzeit-DLL selbst nachlegen und den
+# Rest wegwerfen; allein c2pa_c.lib (statische Linkbibliothek) waere 231 MB Ballast.
+$distC2paLibs = Join-Path $distDir "c2pa\libs"
+New-Item -ItemType Directory -Path $distC2paLibs -Force | Out-Null
+if (-not (Test-Path (Join-Path $distC2paLibs "c2pa_c.dll"))) {
+    Write-Host "c2pa_c.dll fehlt im Build - kopiere aus site-packages..." -ForegroundColor Yellow
+    $c2paDir = & $python -c "import importlib.util, pathlib; print(pathlib.Path(importlib.util.find_spec('c2pa').origin).parent)"
+    if ($LASTEXITCODE -ne 0) { throw "c2pa-Package im venv nicht gefunden" }
+    $srcLibs = Join-Path $c2paDir.Trim() "libs"
+    if (-not (Test-Path (Join-Path $srcLibs "c2pa_c.dll"))) {
+        throw "c2pa_c.dll nicht in $srcLibs gefunden"
+    }
+    Copy-Item -Force (Join-Path $srcLibs "c2pa_c.dll") $distC2paLibs
+}
+# Build-Artefakte des Rust-Wheels entfernen - zur Laufzeit wird nur die DLL geladen.
+Get-ChildItem -Path $distC2paLibs -File -Include *.lib, *.pdb, *.exp, *.d, *.a -Recurse |
+    Remove-Item -Force
+
 $elapsed = [int]((Get-Date) - $started).TotalSeconds
 $exe     = Join-Path $distDir "c2pa-scanner.exe"
+
+# Empirische Abnahme: die FERTIGE Binary muss die native Bibliothek laden koennen.
+# Schlaegt das fehl, ist der Build unbrauchbar und darf nicht als ZIP rausgehen.
+Write-Host "Selftest (C2PA-Bibliothek im Build)..." -ForegroundColor Cyan
+& $exe selftest
+if ($LASTEXITCODE -ne 0) { throw "Selftest fehlgeschlagen - Build laedt c2pa_c.dll nicht" }
 $sizeMB  = [math]::Round(((Get-ChildItem -Recurse $distDir | Measure-Object Length -Sum).Sum) / 1MB, 1)
 
 $zip = Join-Path $outDir "c2pa-scanner-v$version-windows-x64.zip"
