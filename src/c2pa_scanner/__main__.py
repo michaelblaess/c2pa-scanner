@@ -16,7 +16,7 @@ if _is_frozen:
     if os.path.isdir(_browsers_dir):
         os.environ["PLAYWRIGHT_BROWSERS_PATH"] = _browsers_dir
 
-from c2pa_scanner import __version__  # noqa: E402 - nach dem Browsers-Path-Setup
+from c2pa_scanner import __author__, __version__  # noqa: E402 - nach dem Browsers-Path-Setup
 from c2pa_scanner.domain.models import ImageFinding, Verdict  # noqa: E402
 
 _VERDICT_LABEL = {
@@ -66,6 +66,39 @@ def _cmd_selftest(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _disclaimer_ok(accepted_flag: bool) -> bool:
+    """Prueft die Zustimmung zum Haftungshinweis fuer den Kommandozeilenbetrieb.
+
+    Liegt keine Zustimmung zur aktuellen Fassung vor, wird der Wortlaut ausgegeben
+    und abgebrochen - bestaetigt wird ausschliesslich ueber --accept-disclaimer,
+    damit die Zustimmung eine bewusste Handlung bleibt.
+
+    Args:
+        accepted_flag:
+        Wert von --accept-disclaimer.
+
+    Returns:
+        True, wenn der Lauf starten darf.
+    """
+    from textual_widgets import DISCLAIMER_VERSION, DisclaimerStore, disclaimer_text
+
+    from c2pa_scanner.infrastructure.settings import JsonSettingsStore
+
+    store = DisclaimerStore(JsonSettingsStore().path.parent / "disclaimer.json")
+    if store.accepted_version == DISCLAIMER_VERSION:
+        return True
+    if not accepted_flag:
+        print(disclaimer_text("de", author=__author__), file=sys.stderr)
+        print(
+            "\nDieser Hinweis ist zu bestaetigen, bevor ein Scan startet:\n"
+            "  c2pa-scanner scan <sitemap> --accept-disclaimer",
+            file=sys.stderr,
+        )
+        return False
+    store.record()
+    return True
+
+
 def _cmd_scan(args: argparse.Namespace) -> int:
     import asyncio
 
@@ -74,6 +107,9 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         ensure_c2pa_available,
     )
     from c2pa_scanner.services.sitemap_scan import SitemapScanService
+
+    if not _disclaimer_ok(args.accept_disclaimer):
+        return 2
 
     # Ohne die native Bibliothek waere jedes Bild still "kein C2PA" - hart abbrechen.
     try:
@@ -86,12 +122,13 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     pages = {"n": 0}
     try:
         asyncio.run(
-            SitemapScanService().scan(
+            SitemapScanService(rate_per_minute=args.rate_limit).scan(
                 args.sitemap,
                 on_pages=lambda n: pages.__setitem__("n", n),
                 on_finding=findings.append,
                 on_log=lambda m: print(m, file=sys.stderr),
                 render=args.render,
+                respect_robots=not args.ignore_robots,
             )
         )
     except Exception as exc:  # noqa: BLE001 - Fehler dem User zeigen
@@ -170,7 +207,9 @@ def _cmd_tui(args: argparse.Namespace) -> int:
     return _run_tui(args.sitemap)
 
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
+    """Baut die Kommandozeilen-Schnittstelle auf (getrennt von main, damit die
+    Vorgabewerte testbar bleiben)."""
     parser = argparse.ArgumentParser(
         prog="c2pa-scanner",
         description=(
@@ -191,6 +230,30 @@ def main() -> int:
         action="store_true",
         help="Seiten mit Playwright rendern (findet auch JS-/Shadow-DOM-Bilder, langsamer)",
     )
+    p_scan.add_argument(
+        "--ignore-robots",
+        action="store_true",
+        help="robots.txt ignorieren (nur fuer eigene Seiten sinnvoll)",
+    )
+    p_scan.add_argument(
+        "--rate-limit",
+        type=int,
+        default=60,
+        metavar="N",
+        help=(
+            "Hoechstens N Requests pro Minute (Seiten, Renderings und Bilder zusammen). "
+            "Standard: 60. Mit 0 laeuft der Scan ungebremst - das kann ein "
+            "Produktivsystem spuerbar belasten"
+        ),
+    )
+    p_scan.add_argument(
+        "--accept-disclaimer",
+        action="store_true",
+        help=(
+            "Haftungs- und Nutzungshinweis bestaetigen (einmalig noetig; ohne "
+            "Bestaetigung wird der Hinweis ausgegeben und abgebrochen)"
+        ),
+    )
     p_scan.set_defaults(func=_cmd_scan)
 
     p_make = sub.add_parser("make-testimage", help="Signiertes C2PA-Testbild erzeugen")
@@ -207,7 +270,12 @@ def main() -> int:
     )
     p_self.set_defaults(func=_cmd_selftest)
 
-    args = parser.parse_args()
+    return parser
+
+
+def main() -> int:
+    """Wertet die Kommandozeile aus und startet den gewaehlten Befehl."""
+    args = build_parser().parse_args()
     if args.command is None:
         return _run_tui(None)
     result: int = args.func(args)

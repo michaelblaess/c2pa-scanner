@@ -19,11 +19,14 @@ from textual.widgets import DataTable, Footer, Header, Input, Static
 from textual_fspicker import FileOpen, FileSave, Filters
 from textual_themes import register_all
 from textual_widgets import (
+    DISCLAIMER_VERSION,
     AboutScreen,
     ClickableLinksMixin,
     ContextMenuItem,
     ContextMenuScreen,
     CrashGuard,
+    DisclaimerScreen,
+    DisclaimerStore,
     HorizontalSplitter,
     InfoHeader,
     InfoItem,
@@ -123,6 +126,10 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         register_all(self)
 
         self._settings_store = JsonSettingsStore()
+        # Zustimmung zum Haftungshinweis liegt neben den Einstellungen.
+        self._disclaimer = DisclaimerStore(
+            JsonSettingsStore().path.parent / "disclaimer.json"
+        )
         settings = self._settings_store.load()
         theme = settings.get("theme")
         if isinstance(theme, str) and theme in self.available_themes:
@@ -130,11 +137,16 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self._proxy = str(settings.get("proxy_url", ""))
         self._graphics_pref = bool(settings.get("graphics_preview", False))
         self._render = bool(settings.get("browser_render", False))
+        self._respect_robots = bool(settings.get("respect_robots", True))
         self._page_preview = bool(settings.get("page_preview", False))
         self._jira_format = str(settings.get("jira_format", "markdown"))
         self._min_size = max(0, self._read_int(settings, "min_image_size", 0))
         self._concurrency = max(1, self._read_int(settings, "concurrency", 8))
         self._timeout = max(1, self._read_int(settings, "timeout", 30))
+        # Standardmaessig gedrosselt: ungebremst kann ein Lauf ein Produktivsystem
+        # spuerbar belasten. Wer schneller sein will, schaltet es bewusst ab.
+        self._rate_limit_on = bool(settings.get("rate_limit_enabled", True))
+        self._rate_per_minute = max(1, self._read_int(settings, "rate_per_minute", 60))
 
         last = settings.get("last_sitemap")
         self._sitemap: str | None = start_sitemap or (
@@ -199,6 +211,28 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
             self.post_message(
                 LogMessage.info(f"Sitemap geladen: {self._sitemap} - 'c' zum Scannen")
             )
+        self._ask_disclaimer()
+
+    def _ask_disclaimer(self) -> None:
+        """Holt den Haftungshinweis ein, solange er nicht (in dieser Fassung) bestaetigt ist."""
+        if self._disclaimer.accepted_version == DISCLAIMER_VERSION:
+            return
+        self.push_screen(
+            DisclaimerScreen(
+                app_name=f"c2pa-scanner {__version__}",
+                lang="de",
+                author=__author__,
+                footer=f"© {__year__} {__author__} · github.com/michaelblaess/c2pa-scanner",
+            ),
+            callback=self._on_disclaimer,
+        )
+
+    def _on_disclaimer(self, accepted: bool | None) -> None:
+        """Ohne Zustimmung wird das Programm beendet - der Hinweis ist nicht optional."""
+        if not accepted:
+            self.exit()
+            return
+        self._disclaimer.record()
 
     async def on_unmount(self) -> None:
         # Laufende Vorschau-Worker zuerst abbrechen, damit sie das capture()-Lock
@@ -276,6 +310,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
                 page_concurrency=self._concurrency,
                 image_concurrency=self._concurrency,
                 timeout=float(self._timeout),
+                rate_per_minute=self._rate_per_minute if self._rate_limit_on else 0,
             ).scan(
                 sitemap,
                 on_pages=self._on_pages,
@@ -286,6 +321,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
                 proxy=self._proxy,
                 min_image_size=self._min_size,
                 render=self._render,
+                respect_robots=self._respect_robots,
             )
         except Exception as exc:  # noqa: BLE001 - Fehler dem User zeigen, nicht crashen
             self.post_message(LogMessage.error(f"Scan-Fehler: {exc}"))
@@ -732,6 +768,16 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self._concurrency = max(1, self._read_int(new_settings, "concurrency", self._concurrency))
         self._timeout = max(1, self._read_int(new_settings, "timeout", self._timeout))
         self._jira_format = str(new_settings.get("jira_format", self._jira_format))
+        # Scan-Parameter sofort uebernehmen: sie werden erst beim naechsten Scan
+        # gelesen, muessen also nicht auf einen App-Neustart warten. (Layout-nahe
+        # Optionen wie page_preview bleiben aussen vor - die braeuchten ein
+        # Neuaufbauen der Oberflaeche.)
+        self._render = bool(new_settings.get("browser_render", self._render))
+        self._respect_robots = bool(new_settings.get("respect_robots", self._respect_robots))
+        self._rate_limit_on = bool(new_settings.get("rate_limit_enabled", self._rate_limit_on))
+        self._rate_per_minute = max(
+            1, self._read_int(new_settings, "rate_per_minute", self._rate_per_minute)
+        )
 
     def action_show_about(self) -> None:
         self.push_screen(
