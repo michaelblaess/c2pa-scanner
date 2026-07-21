@@ -144,6 +144,11 @@ signature, so scan the original master where possible.
   (Settings -> Export): **Markdown** for Jira Cloud (converts to a real table when pasted into a
   comment) and **Wiki Markup** for older Jira Server/Data Center instances.
 
+- **Two languages**: the interface is available in English and German. On first start the language
+  follows your system environment - German only for a demonstrably German-speaking environment,
+  everything else (including any error while reading it) falls back to English. You can switch at
+  any time under *Settings -> Language*; the setting takes effect after a restart.
+
 ### Other detection methods - and why they are (not yet) implemented
 
 For completeness, the alternatives that exist but are deliberately NOT built in:

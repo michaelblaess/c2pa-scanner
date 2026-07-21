@@ -145,6 +145,11 @@ Jedes Verkleinern/Zuschneiden bricht die C2PA-Signatur - also möglichst das Ori
   Kommentarfeld automatisch in eine echte Tabelle um) und **Wiki Markup** für ältere
   Jira-Server/Data-Center-Instanzen.
 
+- **Zweisprachig**: die Oberfläche gibt es auf Deutsch und Englisch. Beim ersten Start richtet sie
+  sich nach Deiner Systemumgebung - Deutsch nur bei nachweislich deutschsprachiger Umgebung, jeder
+  andere Fall (auch ein Fehler beim Auslesen) führt zu Englisch. Umschalten kannst Du jederzeit
+  unter *Einstellungen -> Sprache*; die Änderung wirkt nach einem Neustart.
+
 ### Andere Erkennungsmethoden - und warum (noch) nicht implementiert
 
 Vollständigkeitshalber die Alternativen, die es gibt, aber bewusst NICHT eingebaut sind:
