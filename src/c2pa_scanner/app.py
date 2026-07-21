@@ -37,6 +37,10 @@ from textual_widgets import (
 from c2pa_scanner import __author__, __version__, __year__
 from c2pa_scanner.domain.models import ImageFinding, Verdict
 from c2pa_scanner.infrastructure.asyncio_guard import install_playwright_shutdown_guard
+from c2pa_scanner.infrastructure.c2pa_reader import (
+    C2paUnavailableError,
+    ensure_c2pa_available,
+)
 from c2pa_scanner.infrastructure.history import HistoryEntry, HistoryStore
 from c2pa_scanner.infrastructure.settings import JsonSettingsStore
 from c2pa_scanner.services.preview_service import PreviewService
@@ -232,6 +236,27 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self._update_stats()
         self.post_message(LogMessage.info(f"Scan: {sitemap}"))
         self._progress_timer = self.set_interval(0.3, self._tick_progress)
+
+        # Fehlt die native Bibliothek, waere JEDES Ergebnis still falsch-negativ
+        # ("kein C2PA" fuer alles). Darum hier hart abbrechen, statt pro Bild einen
+        # RuntimeError zu melden, der im Log untergeht.
+        try:
+            ensure_c2pa_available()
+        except C2paUnavailableError as exc:
+            self.post_message(LogMessage.error(f"C2PA-Bibliothek nicht ladbar: {exc}"))
+            self.post_message(
+                LogMessage.error(
+                    "Scan abgebrochen - ohne die native Bibliothek würde jedes Bild "
+                    "fälschlich als 'kein C2PA' gewertet."
+                )
+            )
+            self.notify(
+                "C2PA-Bibliothek fehlt - Scan abgebrochen. Details im Log ('l').",
+                severity="error",
+                timeout=10,
+            )
+            self._end_scan(table)
+            return
 
         if await self._proxy_gateway_detected(sitemap):
             self._end_scan(table)

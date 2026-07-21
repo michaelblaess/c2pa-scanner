@@ -60,6 +60,7 @@ fi
     --include-package=c2pa_scanner \
     --include-package-data=c2pa_scanner \
     --include-package=c2pa \
+    --include-package-data=c2pa \
     --output-dir="$out_dir" \
     --output-filename=c2pa-scanner \
     "$entry"
@@ -78,6 +79,32 @@ if [ ! -d "$latest" ]; then
     exit 1
 fi
 cp -R "$latest" "$browsers_dir/"
+
+# c2pa/libs im Build normalisieren. Auf Windows ist belegt (Nuitka 4.1.3), dass
+# --include-package-data=c2pa die Metadateien mitnimmt, aber NICHT die native Lib.
+# Darum hier dasselbe Vorgehen: Lib sicherstellen, Build-Artefakte wegwerfen.
+# Der Selftest unten entscheidet, ob es gereicht hat.
+if ! ls "$dist_dir/c2pa/libs/"libc2pa_c.* >/dev/null 2>&1; then
+    echo "Native C2PA-Lib fehlt im Build - kopiere aus site-packages..."
+    c2pa_dir="$("$python" -c "import importlib.util, pathlib; print(pathlib.Path(importlib.util.find_spec('c2pa').origin).parent)")"
+    if [ ! -d "$c2pa_dir/libs" ]; then
+        echo "libs-Verzeichnis nicht in $c2pa_dir gefunden" >&2
+        exit 1
+    fi
+    mkdir -p "$dist_dir/c2pa/libs"
+    cp -R "$c2pa_dir/libs/." "$dist_dir/c2pa/libs/"
+fi
+# Build-Artefakte des Rust-Wheels entfernen - geladen wird nur die Shared Library.
+find "$dist_dir/c2pa/libs" -type f \
+    \( -name '*.lib' -o -name '*.pdb' -o -name '*.exp' -o -name '*.d' -o -name '*.a' \) \
+    -delete 2>/dev/null || true
+
+# Empirische Abnahme: die FERTIGE Binary muss die native Bibliothek laden koennen.
+echo "Selftest (C2PA-Bibliothek im Build)..."
+if ! "$dist_dir/c2pa-scanner" selftest; then
+    echo "Selftest fehlgeschlagen - Build laedt die native C2PA-Lib nicht" >&2
+    exit 1
+fi
 
 elapsed=$(( $(date +%s) - started ))
 size_mb=$(du -sm "$dist_dir" | cut -f1)

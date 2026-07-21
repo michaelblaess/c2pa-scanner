@@ -29,6 +29,38 @@ _CREATORTOOL_RE = re.compile(
 )
 
 
+class C2paUnavailableError(RuntimeError):
+    """Die native C2PA-Bibliothek (c2pa_c) laesst sich nicht laden."""
+
+
+# Ergebnis der einmaligen Verfuegbarkeitspruefung: None = noch nicht geprueft,
+# "" = verfuegbar, sonst der Fehlertext des fehlgeschlagenen Imports.
+_availability: str | None = None
+
+
+def ensure_c2pa_available() -> None:
+    """Prueft (einmalig, gecacht), ob die native C2PA-Bibliothek geladen werden kann.
+
+    `import c2pa` laedt c2pa_c per ctypes. Schlaegt das fehl, waere JEDE Pruefung
+    still falsch-negativ - jedes Bild wuerde als "kein C2PA" gemeldet. Darum ist
+    das ein harter Abbruchgrund und kein Einzelbild-Fehler.
+
+    Raises:
+        C2paUnavailableError:
+        Wenn die native Bibliothek nicht geladen werden kann.
+    """
+    global _availability
+    if _availability is None:
+        try:
+            import c2pa  # noqa: F401 - Import laedt die native Bibliothek
+        except Exception as exc:  # noqa: BLE001 - jeder Ladefehler zaehlt
+            _availability = f"{type(exc).__name__}: {exc}"
+        else:
+            _availability = ""
+    if _availability:
+        raise C2paUnavailableError(_availability)
+
+
 def _sniff_mime(data: bytes, fallback: str) -> str:
     for magic, mime in _MAGIC:
         if data.startswith(magic):
