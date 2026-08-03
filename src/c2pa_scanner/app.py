@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import dataclasses
+import traceback
 from datetime import datetime
 from pathlib import Path
 
@@ -46,7 +47,7 @@ from c2pa_scanner.infrastructure.c2pa_reader import (
     ensure_c2pa_available,
 )
 from c2pa_scanner.infrastructure.history import HistoryEntry, HistoryStore
-from c2pa_scanner.infrastructure.settings import JsonSettingsStore
+from c2pa_scanner.infrastructure.settings import CRASH_LOG_NAME, JsonSettingsStore
 from c2pa_scanner.services.preview_service import PreviewService
 from c2pa_scanner.services.sitemap_scan import SitemapScanService
 from c2pa_scanner.widgets.findings_table import FindingsTable, ResultsDataTable
@@ -221,6 +222,29 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
                 LogMessage.info(t("log.sitemap_loaded", sitemap=self._sitemap))
             )
         self._ask_disclaimer()
+
+    def _handle_exception(self, error: Exception) -> None:
+        """Schreibt den Traceback auf Platte, bevor der Fehlerdialog laeuft.
+
+        Der CrashGuard zeigt den Traceback nur im Dialog an. Faellt dieser beim
+        Neuaufbau selbst mit (struktureller Defekt), geht der Bericht verloren und
+        der naechste Absturz ist wieder undiagnostizierbar - unter Windows bleibt
+        dann nur Maus-Steuerzeichen-Muell im Terminal zurueck. Die Datei ueberlebt
+        auch den harten Absturzpfad von Textual.
+        """
+        with contextlib.suppress(Exception):
+            self._persist_crash(error)
+        super()._handle_exception(error)
+
+    def _persist_crash(self, error: BaseException) -> None:
+        """Haengt den Traceback mit Zeitstempel an die Absturz-Datei an."""
+        report = "".join(traceback.format_exception(type(error), error, error.__traceback__))
+        path = self._settings_store.path.parent / CRASH_LOG_NAME
+        path.parent.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # noqa: DTZ005 - lokale Zeit
+        header = f"\n===== {stamp} - c2pa-scanner v{__version__} =====\n"
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(header + report)
 
     def _ask_disclaimer(self) -> None:
         """Holt den Haftungshinweis ein, solange er nicht (in dieser Fassung) bestaetigt ist."""

@@ -5,6 +5,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+# Absturzberichte landen neben den Einstellungen. Angehaengt, nicht ersetzt -
+# so bleibt auch ein frueherer Absturz nachvollziehbar.
+CRASH_LOG_NAME = "last-crash.txt"
+
 
 class JsonSettingsStore:
     """Laedt/speichert die App-Einstellungen als JSON im Home-Verzeichnis."""

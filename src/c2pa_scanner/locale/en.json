@@ -155,6 +155,8 @@
   "settings.jira_format_wiki": "Wiki markup (Server/DC)",
   "settings.jira_format_hint": "Format for the JIRA export (key j). Markdown = Jira Cloud: a Markdown table is converted into a real table when pasted into the comment field. The Cloud editor no longer understands the old wiki markup. Wiki markup = older Jira Server / Data Center instances.",
   "settings.storage_settings": "Settings",
+  "settings.storage_crash": "Crash reports",
+  "settings.storage_fault": "Hard crashes (fault.log)",
   "settings.storage_disclaimer": "Disclaimer consent",
 
   "summary.ai_label": "of those AI (label required)",

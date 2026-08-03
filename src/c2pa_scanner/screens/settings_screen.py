@@ -12,7 +12,7 @@ from textual_slider import Slider
 from textual_widgets import BaseSettingsScreen
 
 from c2pa_scanner.i18n import t
-from c2pa_scanner.infrastructure.settings import JsonSettingsStore
+from c2pa_scanner.infrastructure.settings import CRASH_LOG_NAME, JsonSettingsStore
 
 # Stufen fuer die Klartext-Beschriftung des Rate-Reglers: (Obergrenze, Text).
 _RATE_STEPS: tuple[tuple[int, str], ...] = (
@@ -213,4 +213,14 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
         return [
             (t("settings.storage_settings"), settings_path),
             (t("settings.storage_disclaimer"), settings_path.parent / "disclaimer.json"),
+            # Die Fehlerprotokolle nur, wenn es sie gibt - sonst schickt der
+            # Speicherort-Tab den Anwender zu Dateien, die nie angelegt wurden.
+            *[
+                (t(key), settings_path.parent / name)
+                for key, name in (
+                    ("settings.storage_crash", CRASH_LOG_NAME),
+                    ("settings.storage_fault", "fault.log"),
+                )
+                if (settings_path.parent / name).is_file()
+            ],
         ]
