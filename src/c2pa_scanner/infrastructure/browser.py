@@ -14,6 +14,8 @@ from types import TracebackType
 from typing import Any
 from urllib.parse import urldefrag, urljoin
 
+from c2pa_scanner.infrastructure.consent import accept_consent
+
 # JS-Sammler: laeuft im Seitenkontext, geht das DOM inkl. offener Shadow-Roots
 # durch und liefert alle <img>-Quellen sowie CSS-background-image-URLs.
 _COLLECT_JS = r"""() => {
@@ -48,10 +50,18 @@ class PageRenderer:
     schliesst beide beim Verlassen.
     """
 
-    def __init__(self, *, timeout: float, proxy: str = "", headless: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        timeout: float,
+        proxy: str = "",
+        headless: bool = True,
+        accept_consent: bool = True,
+    ) -> None:
         self._timeout = timeout
         self._proxy = proxy.strip()
         self._headless = headless
+        self._accept_consent = accept_consent
         self._pw: Any = None
         self._browser: Any = None
 
@@ -87,6 +97,11 @@ class PageRenderer:
             await page.goto(
                 page_url, wait_until="networkidle", timeout=int(self._timeout * 1000)
             )
+            # Hinter einem Consent-Banner bleiben Bilder haeufig ungeladen (die
+            # Seite schaltet sie erst nach der Zustimmung frei) - erst zustimmen,
+            # dann einsammeln.
+            if self._accept_consent:
+                await accept_consent(page)
             raw: list[str] = await page.evaluate(_COLLECT_JS)
         finally:
             await page.close()

@@ -21,6 +21,8 @@ from typing import Any
 
 from playwright.async_api import async_playwright
 
+from c2pa_scanner.infrastructure.consent import accept_consent
+
 # Fortschritts-Callback: bekommt einen Phasen-Schluessel ("navigate",
 # "consent", "render", "capture"), den die UI uebersetzt und anzeigt.
 PhaseCallback = Callable[[str], None]
@@ -43,6 +45,7 @@ class PreviewService:
         cache_dir: Path | None = None,
         ttl_seconds: int = _TTL_SECONDS,
         proxy: str = "",
+        accept_consent: bool = True,
     ) -> None:
         self._playwright: Any = None
         self._browser: Any = None
@@ -51,6 +54,7 @@ class PreviewService:
         self._cache_dir = cache_dir or CACHE_DIR
         self._ttl = ttl_seconds
         self._proxy = proxy.strip()
+        self._accept_consent = accept_consent
 
     async def capture(
         self, url: str, image_url: str = "", on_phase: PhaseCallback | None = None
@@ -73,7 +77,11 @@ class PreviewService:
         Returns:
             PNG-Bilddaten oder None, wenn der Screenshot fehlschlaegt.
         """
-        key = f"{url}\n{image_url}"
+        # Das Consent-Verhalten gehoert in den Schluessel: mit und ohne bestaetigtes
+        # Banner sieht dieselbe Seite verschieden aus. Nebeneffekt und ausdruecklich
+        # gewollt - Aufnahmen aus der Zeit, als das Banner stehen blieb, werden nicht
+        # mehr getroffen und der Fehler klebt nicht wochenlang im Zwischenspeicher.
+        key = f"{url}\n{image_url}\nconsent={int(self._accept_consent)}"
         cached = self._mem.get(key)
         if cached is not None:
             return cached
@@ -138,37 +146,11 @@ class PreviewService:
 
     async def _prepare_page(self, page: Any, on_phase: PhaseCallback | None = None) -> None:
         """Consent akzeptieren + Lazy-Loading durch Scrollen ausloesen."""
-        self._emit(on_phase, "consent")
-        await self._accept_consent(page)
+        if self._accept_consent:
+            self._emit(on_phase, "consent")
+            await accept_consent(page)
         self._emit(on_phase, "render")
         await self._trigger_lazy_loading(page)
-
-    @staticmethod
-    async def _accept_consent(page: Any) -> None:
-        """Akzeptiert gaengige Consent-Manager (Usercentrics/OneTrust/Cookiebot)."""
-        with contextlib.suppress(Exception):
-            consent = await page.evaluate(
-                """() => {
-                    const uc = window.UC_UI;
-                    if (uc && typeof uc.acceptAllConsents === 'function') {
-                        uc.acceptAllConsents();
-                        if (typeof uc.closeCMP === 'function') { uc.closeCMP(); }
-                        return true;
-                    }
-                    if (window.OneTrust && typeof window.OneTrust.AllowAll === 'function') {
-                        window.OneTrust.AllowAll();
-                        return true;
-                    }
-                    const cb = window.Cookiebot;
-                    if (cb && typeof cb.submitCustomConsent === 'function') {
-                        cb.submitCustomConsent(true, true, true);
-                        return true;
-                    }
-                    return false;
-                }"""
-            )
-            if consent:
-                await page.wait_for_timeout(1500)
 
     @staticmethod
     async def _trigger_lazy_loading(page: Any) -> None:

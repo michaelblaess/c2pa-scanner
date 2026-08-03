@@ -82,6 +82,8 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         Binding("o,O", "choose_sitemap", "placeholder", key_display="o"),
         Binding("m,M", "load_sitemap_file", "placeholder", key_display="m"),
         Binding("c,C", "scan", "placeholder", key_display="c"),
+        # Nur waehrend eines Laufs im Fusszeilenmenue - siehe check_action.
+        Binding("x,X", "cancel_scan", "placeholder", key_display="x"),
         Binding("e,E", "toggle_ai", "placeholder", key_display="e"),
         Binding("d,D", "c2pa_details", "placeholder", key_display="d"),
         Binding("h,H", "show_history", "placeholder", key_display="h"),
@@ -111,6 +113,9 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self._graphics_pref = bool(settings.get("graphics_preview", False))
         self._render = bool(settings.get("browser_render", False))
         self._respect_robots = bool(settings.get("respect_robots", True))
+        # Cookie-Banner blockieren die Vorschau und halten auf gerenderten Seiten
+        # Bilder zurueck - darum standardmaessig zustimmen.
+        self._accept_consent = bool(settings.get("accept_consent", True))
         self._page_preview = bool(settings.get("page_preview", False))
         self._jira_format = str(settings.get("jira_format", "markdown"))
         self._min_size = max(0, self._read_int(settings, "min_image_size", 0))
@@ -138,6 +143,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self._current_finding: ImageFinding | None = None
         self._export_content = ""
         self._preview_service: PreviewService | None = None
+        self._scan_service: SitemapScanService | None = None
 
         self._init_bindings()
 
@@ -147,6 +153,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
             "choose_sitemap": "binding.choose_sitemap",
             "load_sitemap_file": "binding.load_sitemap_file",
             "scan": "binding.scan",
+            "cancel_scan": "binding.cancel_scan",
             "toggle_ai": "binding.toggle_ai",
             "c2pa_details": "binding.c2pa_details",
             "show_history": "binding.history",
@@ -259,6 +266,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
     @work(exclusive=True)
     async def _run_scan(self, sitemap: str) -> None:
         self._scanning = True
+        self.refresh_bindings()  # 'x Scan abbrechen' einblenden, 'c' ausblenden
         self._scan_start = datetime.now()  # noqa: DTZ005 - nur Dauer-Differenz
         table = self.query_one("#results", FindingsTable)
         table.scanning = True
@@ -304,13 +312,15 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
                 self._sitemap = url
                 self._update_stats()
 
+        service = SitemapScanService(
+            page_concurrency=self._concurrency,
+            image_concurrency=self._concurrency,
+            timeout=float(self._timeout),
+            rate_per_minute=self._rate_per_minute if self._rate_limit_on else 0,
+        )
+        self._scan_service = service
         try:
-            await SitemapScanService(
-                page_concurrency=self._concurrency,
-                image_concurrency=self._concurrency,
-                timeout=float(self._timeout),
-                rate_per_minute=self._rate_per_minute if self._rate_limit_on else 0,
-            ).scan(
+            await service.scan(
                 sitemap,
                 on_pages=self._on_pages,
                 on_finding=self._on_finding,
@@ -321,10 +331,24 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
                 min_image_size=self._min_size,
                 render=self._render,
                 respect_robots=self._respect_robots,
+                accept_consent=self._accept_consent,
             )
         except Exception as exc:  # noqa: BLE001 - Fehler dem User zeigen, nicht crashen
             self.post_message(LogMessage.error(t("log.scan_error", error=exc)))
             self.notify(t("notify.scan_failed", error=exc), severity="error")
+            self._end_scan(table)
+            return
+
+        # Abgebrochen: die bis hierher gefundenen Zeilen bleiben stehen, damit man
+        # sie ansehen kann. Kein Verlaufseintrag und keine Zusammenfassung - beide
+        # wuerden ein unvollstaendiges Ergebnis wie ein vollstaendiges aussehen lassen.
+        if service.cancelled:
+            table.sort_now()
+            findings = table.findings
+            self.post_message(
+                LogMessage.warning(t("log.scan_cancelled_summary", count=len(findings)))
+            )
+            self.notify(t("notify.scan_cancelled", count=len(findings)), severity="warning")
             self._end_scan(table)
             return
 
@@ -382,14 +406,42 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self.push_screen(ProxyWarningScreen(detection))
         return True
 
+    def action_cancel_scan(self) -> None:
+        """Bricht den laufenden Scan ab; die bisherigen Treffer bleiben stehen."""
+        service = self._scan_service
+        if not self._scanning or service is None:
+            self.notify(t("notify.no_scan_active"), severity="warning")
+            return
+        if service.cancelled:  # schon angefordert - der Lauf ebbt gerade ab
+            return
+        service.cancel()
+        self.post_message(LogMessage.warning(t("log.cancel_requested")))
+        self.notify(t("notify.scan_cancelling"))
+        self.sub_title = t("progress.cancelling")
+        self._phase = ""  # der Fortschrittsbalken soll nicht weiterlaufen
+        self.refresh_bindings()
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        # Modale Dialoge: keine App-Tasten anbieten, solange einer offen ist.
+        if len(self.screen_stack) > 1:
+            return None
+        # Abbrechen nur waehrend eines Laufs, Scannen nur ausserhalb.
+        if action == "cancel_scan":
+            return True if self._scanning else None
+        if action == "scan" and self._scanning:
+            return None
+        return True
+
     def _end_scan(self, table: FindingsTable) -> None:
         table.scanning = False
         self._scanning = False
+        self._scan_service = None
         self._phase = ""
         if self._progress_timer is not None:
             self._progress_timer.stop()
             self._progress_timer = None
         self.sub_title = ""
+        self.refresh_bindings()
 
     def _tick_progress(self) -> None:
         if not self._phase:
@@ -441,7 +493,9 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
     async def _load_page_preview(self, page_url: str, image_url: str) -> None:
         panel = self.query_one("#page-preview", PreviewPanel)
         if self._preview_service is None:
-            self._preview_service = PreviewService(proxy=self._proxy)
+            self._preview_service = PreviewService(
+                proxy=self._proxy, accept_consent=self._accept_consent
+            )
         phases = {
             "navigate": "Seite laden ...",
             "consent": "Cookie-Banner ...",
@@ -764,7 +818,14 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         if new_settings is None:
             return
         self._persist(new_settings)
+        old_proxy, old_consent = self._proxy, self._accept_consent
         self._proxy = str(new_settings.get("proxy_url", self._proxy))
+        self._accept_consent = bool(new_settings.get("accept_consent", self._accept_consent))
+        # Der Vorschau-Browser wird einmal gestartet und offen gehalten; Proxy und
+        # Consent-Verhalten stecken in dieser Instanz. Bei Aenderung also verwerfen,
+        # sonst arbeitet die Vorschau bis zum Neustart mit den alten Werten weiter.
+        if (old_proxy, old_consent) != (self._proxy, self._accept_consent):
+            self._reset_preview_service()
         self._min_size = max(0, self._read_int(new_settings, "min_image_size", self._min_size))
         self._concurrency = max(1, self._read_int(new_settings, "concurrency", self._concurrency))
         self._timeout = max(1, self._read_int(new_settings, "timeout", self._timeout))
@@ -779,6 +840,17 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         self._rate_per_minute = max(
             1, self._read_int(new_settings, "rate_per_minute", self._rate_per_minute)
         )
+
+    @work(group="preview-reset")
+    async def _reset_preview_service(self) -> None:
+        """Schliesst den Vorschau-Browser, damit er mit neuen Einstellungen neu startet."""
+        service, self._preview_service = self._preview_service, None
+        if service is None:
+            return
+        with contextlib.suppress(Exception):
+            self.workers.cancel_group(self, "page-preview")
+        with contextlib.suppress(Exception):
+            await service.close()
 
     def action_show_about(self) -> None:
         self.push_screen(

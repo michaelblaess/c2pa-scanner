@@ -130,6 +130,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
                 on_log=lambda m: print(m, file=sys.stderr),
                 render=args.render,
                 respect_robots=not args.ignore_robots,
+                accept_consent=not args.no_consent,
             )
         )
     except Exception as exc:  # noqa: BLE001 - Fehler dem User zeigen
@@ -230,6 +231,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--render",
         action="store_true",
         help="Seiten mit Playwright rendern (findet auch JS-/Shadow-DOM-Bilder, langsamer)",
+    )
+    p_scan.add_argument(
+        "--no-consent",
+        action="store_true",
+        help=(
+            "Cookie-Banner NICHT automatisch akzeptieren (wirkt nur mit --render; "
+            "ohne Zustimmung bleiben Bilder ungeladen, die eine Seite erst danach freigibt)"
+        ),
     )
     p_scan.add_argument(
         "--ignore-robots",

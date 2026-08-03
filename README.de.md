@@ -99,6 +99,9 @@ c2pa-scanner scan ./sitemap.xml
 # Jede Seite zusätzlich in Chromium rendern (findet JS-/Shadow-DOM-Bilder, deutlich schwerer)
 c2pa-scanner scan https://www.example.com/sitemap.xml --render --rate-limit 20
 
+# Cookie-Banner stehen lassen, statt sie zu bestätigen (wirkt nur mit --render)
+c2pa-scanner scan https://www.example.com/sitemap.xml --render --no-consent
+
 # Signiertes C2PA-Testbild erzeugen (Positiv-Testfall)
 c2pa-scanner make-testimage ./test-ki.jpg
 c2pa-scanner make-testimage ./test-bearbeitet.jpg --edited
@@ -127,6 +130,12 @@ Die Erkennung ist mehrstufig und bewusst auf wenige Falsch-Positive ausgelegt:
 - **Browser-Rendering** (optional, Standard aus): zuschaltbar rendert das Tool jede Seite zusätzlich in
   einem headless Chromium (Playwright) und ergänzt so Bilder, die erst per JavaScript ins (Shadow-)DOM
   geladen werden - als Union mit der Regex-Extraktion.
+- **Cookie-Consent** (Standard an): sobald ein Banner geladen ist, wird es automatisch bestätigt
+  (Usercentrics, OneTrust, Cookiebot; sonst ein Klick auf den Zustimmen-Knopf im Banner). Das ist
+  nötig, weil viele Seiten Bilder erst nach der Zustimmung freigeben - und weil das Banner sonst die
+  Seiten-Vorschau verdeckt. Der Manager wird per Skript nachgeladen und ist beim Laden der Seite noch
+  nicht da, deshalb wird auf ihn gewartet statt einmal zu raten. Abschaltbar unter
+  *Einstellungen -> Scan*, auf der Kommandozeile mit `--no-consent`.
 
 **Grenzen:** Bilder ganz ohne Herkunftssignal (kein C2PA, kein XMP/EXIF) sind nicht als KI erkennbar.
 Metadaten lassen sich entfernen - Screenshot, erneutes Speichern, und viele Plattformen strippen sie
@@ -138,7 +147,12 @@ Jedes Verkleinern/Zuschneiden bricht die C2PA-Signatur - also möglichst das Ori
 - **Live-Bildvorschau** rechts neben der Trefferliste, mit klickbarem Link zur Fundseite und einem
   Dialog für das rohe C2PA-Manifest.
 - **Seiten-Vorschau** (optional): unter dem Bild ein Screenshot der gerenderten Fundseite, zum Bild
-  gescrollt - so siehst Du ohne Absprung, ob ein KI-Label auf/am Bild dargestellt wird.
+  gescrollt - so siehst Du ohne Absprung, ob ein KI-Label auf/am Bild dargestellt wird. Ein
+  Cookie-Banner wird dabei vorher weggeklickt (siehe oben).
+- **Scan abbrechen** mit `x`: die Taste steht nur während eines Laufs im Fuß. Der Abbruch ist
+  kooperativ - angestoßene Abrufe laufen aus, neue kommen keine mehr dazu, und die bis dahin
+  gefundenen Bilder bleiben in der Tabelle stehen. Vorher blieb nur `q`, und damit war auch das
+  Zwischenergebnis weg.
 - **Filter & Sortierung**, Toggle "Nur KI-Bilder", **Export** per Rechtsklick (JSON, JIRA-Tabelle,
   Klartext) und **Testbild-Signierung** als Positiv-Testfall. Die JIRA-Tabelle gibt es in zwei
   Formaten (Einstellungen -> Export): **Markdown** für Jira Cloud (wandelt sich beim Einfügen ins

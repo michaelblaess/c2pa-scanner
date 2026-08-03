@@ -71,6 +71,14 @@ Screen {
     display: none;
 }
 
+/* Tasten, die gerade nicht gehen, ganz ausblenden statt nur auszugrauen.
+   Textual vergibt .-disabled, sobald check_action None liefert - so steht
+   'Scan abbrechen' nur waehrend eines Laufs im Fuss und 'Scannen' nur ausserhalb,
+   statt beide dauerhaft nebeneinander zu zeigen. */
+Footer FooterKey.-disabled {
+    display: none;
+}
+
 /* Attention-Blink: der Timer schaltet .-attention an/aus (funktioniert auch auf
    Windows Terminal, wo ANSI text-style: blink ignoriert wird). */
 Footer FooterKey.-attention .footer-key--key,

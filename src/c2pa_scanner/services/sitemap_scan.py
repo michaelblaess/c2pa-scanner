@@ -62,6 +62,21 @@ class SitemapScanService:
         # und Bilder), weil Bilder haeufig auf derselben Maschine liegen wie die
         # Seiten - ein reines Seiten-Limit wuerde die halbe Last durchlassen.
         self._rate_per_minute = rate_per_minute
+        self._cancelled = False
+
+    def cancel(self) -> None:
+        """Bricht den laufenden Lauf ab (kooperativ).
+
+        Angestossene Abrufe laufen noch zu Ende, es werden aber keine neuen mehr
+        begonnen. Die bis dahin gemeldeten Funde bleiben erhalten - der Sinn des
+        Abbruchs ist ja, sich das Zwischenergebnis anzusehen.
+        """
+        self._cancelled = True
+
+    @property
+    def cancelled(self) -> bool:
+        """True, wenn der Lauf abgebrochen wurde."""
+        return self._cancelled
 
     async def scan(
         self,
@@ -76,8 +91,10 @@ class SitemapScanService:
         min_image_size: int = 0,
         render: bool = False,
         respect_robots: bool = True,
+        accept_consent: bool = True,
     ) -> None:
         self._min_size = min_image_size
+        self._cancelled = False
         headers = {"User-Agent": _USER_AGENT}
         async with httpx.AsyncClient(
             verify=False,
@@ -94,12 +111,19 @@ class SitemapScanService:
                 parallel = self._page_concurrency + self._image_concurrency
                 on_log(t("log.rate_off", count=parallel))
 
+            # Nur beim Rendern relevant: ohne Browser gibt es kein Banner.
+            if render:
+                on_log(t("log.consent_on") if accept_consent else t("log.consent_off"))
+
             on_log(t("log.loading_sitemap", source=source))
             pages = await load_sitemap(
                 client, source, on_log=on_log, on_resolved=on_resolved
             )
             on_pages(len(pages))
             on_log(t("log.pages_found", count=len(pages)))
+            if self._cancelled:  # waehrend des Sitemap-Ladens abgebrochen
+                on_log(t("log.scan_cancelled"))
+                return
 
             # robots.txt gilt fuer die SEITEN. Bilder werden bewusst nicht geprueft:
             # sie liegen oft auf einer CDN-Domain mit eigener robots.txt, und wer die
@@ -137,7 +161,11 @@ class SitemapScanService:
 
             async def check_image(image_url: str, page_url: str) -> None:
                 nonlocal skipped
+                if self._cancelled:
+                    return
                 async with image_sem:
+                    if self._cancelled:  # in der Warteschlange abgebrochen
+                        return
                     await limiter.acquire()
                     finding = await self._check_image(client, image_url, page_url)
                 if finding is None:  # zu klein -> uebersprungen
@@ -149,7 +177,11 @@ class SitemapScanService:
 
             async def scan_page(page_url: str) -> None:
                 nonlocal pages_done
+                if self._cancelled:
+                    return
                 async with page_sem:
+                    if self._cancelled:  # in der Warteschlange abgebrochen
+                        return
                     await limiter.acquire()
                     try:
                         images = await fetch_page_images(client, page_url)
@@ -190,13 +222,21 @@ class SitemapScanService:
             async with AsyncExitStack() as stack:
                 if render:
                     renderer = await stack.enter_async_context(
-                        PageRenderer(timeout=self._timeout, proxy=proxy)
+                        PageRenderer(
+                            timeout=self._timeout,
+                            proxy=proxy,
+                            accept_consent=accept_consent,
+                        )
                     )
                     on_log(t("log.render_active"))
                 await asyncio.gather(*(scan_page(page_url) for page_url in pages))
-                on_log(t("log.images_found", count=len(seen)))
+                if not self._cancelled:
+                    on_log(t("log.images_found", count=len(seen)))
                 if image_tasks:
                     await asyncio.gather(*image_tasks)
+            if self._cancelled:
+                on_log(t("log.scan_cancelled"))
+                return
             if skipped:
                 on_log(f"{skipped} Bilder uebersprungen (schmaler als {self._min_size}px)")
 
