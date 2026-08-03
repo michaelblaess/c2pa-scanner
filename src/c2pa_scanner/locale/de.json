@@ -155,6 +155,8 @@
   "settings.jira_format_wiki": "Wiki Markup (Server/DC)",
   "settings.jira_format_hint": "Format für den JIRA-Export (Taste j). Markdown = Jira Cloud (eon-energy.atlassian.net): eine Markdown-Tabelle wird beim Einfügen ins Kommentarfeld automatisch in eine echte Tabelle umgewandelt. Das alte Wiki Markup versteht der Cloud-Editor nicht mehr. Wiki Markup = ältere Jira-Server/Data-Center-Instanzen.",
   "settings.storage_settings": "Einstellungen",
+  "settings.storage_crash": "Absturzberichte",
+  "settings.storage_fault": "Harte Abstürze (fault.log)",
   "settings.storage_disclaimer": "Zustimmung Haftungshinweis",
 
   "summary.ai_label": "davon KI (Label nötig)",

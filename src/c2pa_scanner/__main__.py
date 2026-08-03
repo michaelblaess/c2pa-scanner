@@ -19,6 +19,10 @@ if _is_frozen:
 from c2pa_scanner import __author__, __version__  # noqa: E402 - nach dem Browsers-Path-Setup
 from c2pa_scanner.domain.models import ImageFinding, Verdict  # noqa: E402
 
+# Log-Handle offen halten, solange der Prozess laeuft - faulthandler schreibt
+# beim fatalen Signal direkt hinein. Ohne Referenz wuerde der GC es schliessen.
+_fault_log: object | None = None
+
 _VERDICT_LABEL = {
     Verdict.AI_GENERATED: "KI-GENERIERT",
     Verdict.AI_EDITED: "KI-BEARBEITET",
@@ -202,7 +206,61 @@ def _run_tui(sitemap: str | None) -> int:
         C2paScannerApp(start_sitemap=sitemap).run()
     finally:
         reset_terminal_title()
+        _reset_mouse_tracking()
     return 0
+
+
+def _enable_faulthandler() -> None:
+    """Faengt HARTE Abstuerze ab, die an Pythons Exception-Handling UND am
+    finally-Block vorbeilaufen: native Access Violation, Stack-Overflow, fataler
+    Interpreter-Fehler.
+
+    faulthandler installiert einen Handler fuer fatale Signale (unter Windows
+    auch fuer Access Violations) und schreibt beim Absturz den Traceback aller
+    Threads in fault.log - separat vom Terminal, das der Maus-Tracking-Muell
+    sonst unlesbar macht. Der CrashGuard und _persist_crash greifen nur bei
+    normalen Python-Exceptions, dieser Handler bei allem darunter.
+
+    Die Startzeile ist die zweite Haelfte der Diagnose: steht danach nichts
+    weiter in der Datei, wurde der Prozess von aussen abgeraeumt, statt an einem
+    Fehler zu sterben, den Python haette sehen koennen.
+    """
+    import contextlib
+    import faulthandler
+    from datetime import datetime
+
+    from c2pa_scanner.infrastructure.settings import JsonSettingsStore
+
+    global _fault_log
+    with contextlib.suppress(Exception):
+        verzeichnis = JsonSettingsStore().path.parent
+        verzeichnis.mkdir(parents=True, exist_ok=True)
+        # Bewusst offen lassen (Prozess-Lebensdauer) - faulthandler schreibt
+        # beim fatalen Signal direkt in dieses Handle.
+        _fault_log = open(verzeichnis / "fault.log", "a", encoding="utf-8")  # noqa: SIM115
+        stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # noqa: DTZ005 - lokale Zeit
+        _fault_log.write(f"\n===== Start {stamp} - v{__version__} =====\n")
+        _fault_log.flush()
+        faulthandler.enable(file=_fault_log, all_threads=True)
+
+
+def _reset_mouse_tracking() -> None:
+    """Schaltet alle Maus-Tracking-Modi des Terminals ab (idempotent).
+
+    ?1000/?1002/?1003 = Tracking-Modi, ?1006/?1015 = erweitertes Encoding.
+    Sind sie bereits aus, bewirken die Sequenzen nichts.
+
+    Schreibt bewusst nach sys.__stdout__, NICHT sys.stdout: Textual kapert
+    sys.stdout zur Laufzeit, ein Reset dorthin landet im Nichts und das Terminal
+    bleibt im Maus-Tracking-Modus haengen. sys.__stdout__ ist die echte Konsole.
+    Der garantierte Reset passiert ohnehin im Shell-Wrapper run.ps1 (laeuft auch
+    nach einem harten Crash) - das hier ist der zusaetzliche In-Prozess-Pfad.
+    """
+    stream = sys.__stdout__
+    if stream is None or not stream.isatty():
+        return
+    stream.write("\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1015l")
+    stream.flush()
 
 
 def _cmd_tui(args: argparse.Namespace) -> int:
@@ -294,6 +352,7 @@ def _init_language() -> None:
 
 def main() -> int:
     """Wertet die Kommandozeile aus und startet den gewaehlten Befehl."""
+    _enable_faulthandler()
     _init_language()
     args = build_parser().parse_args()
     if args.command is None:
