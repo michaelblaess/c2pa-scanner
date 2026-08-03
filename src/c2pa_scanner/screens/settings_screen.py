@@ -72,6 +72,14 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
                     type="integer",
                 )
             with Horizontal(classes="settings-row"):
+                yield Label(t("settings.consent_label"))
+                yield Checkbox(
+                    t("settings.consent_checkbox"),
+                    value=bool(self._settings.get("accept_consent", True)),
+                    id="set-consent",
+                )
+            yield Static(t("settings.consent_hint"), classes="hint")
+            with Horizontal(classes="settings-row"):
                 yield Label(t("settings.render_label"))
                 yield Checkbox(
                     t("settings.render_checkbox"),
@@ -182,6 +190,7 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
     def collect_app_settings(self, settings: dict[str, object]) -> None:
         settings["proxy_url"] = self.query_one("#set-proxy", Input).value.strip()
         settings["graphics_preview"] = self.query_one("#set-graphics", Checkbox).value
+        settings["accept_consent"] = self.query_one("#set-consent", Checkbox).value
         settings["browser_render"] = self.query_one("#set-render", Checkbox).value
         settings["respect_robots"] = self.query_one("#set-robots", Checkbox).value
         settings["page_preview"] = self.query_one("#set-page-preview", Checkbox).value

@@ -100,6 +100,9 @@ c2pa-scanner scan ./sitemap.xml
 # Render each page in Chromium as well (finds JS / shadow-DOM images, much heavier)
 c2pa-scanner scan https://www.example.com/sitemap.xml --render --rate-limit 20
 
+# Leave cookie banners in place instead of accepting them (only affects --render)
+c2pa-scanner scan https://www.example.com/sitemap.xml --render --no-consent
+
 # Create a signed C2PA test image (positive test fixture)
 c2pa-scanner make-testimage ./test-ai.jpg
 c2pa-scanner make-testimage ./test-edited.jpg --edited
@@ -127,6 +130,12 @@ Detection is layered and deliberately tuned for few false positives:
 - **Browser rendering** (optional, off by default): when enabled, each page is additionally rendered in
   a headless Chromium (Playwright), adding images that only appear in the (shadow) DOM after JavaScript
   runs - as a union with the regex extraction.
+- **Cookie consent** (on by default): a banner is confirmed automatically once it has loaded
+  (Usercentrics, OneTrust, Cookiebot; otherwise by clicking the accept button inside the banner). This
+  matters because many sites only release their images after consent - and because the banner otherwise
+  covers the page preview. The consent manager is loaded by a script and is not there yet when the page
+  fires its load event, so the tool waits for it instead of guessing once. Switch it off under
+  *Settings -> Scan*, or on the command line with `--no-consent`.
 
 **Limits:** images with no provenance signal at all (no C2PA, no XMP/EXIF) cannot be flagged as AI.
 Metadata can be stripped - screenshots, re-saving, and many platforms remove it on upload. A hit is a
@@ -138,7 +147,11 @@ signature, so scan the original master where possible.
 - **Live image preview** next to the result list, with a clickable link to the source page and a dialog
   for the raw C2PA manifest.
 - **Page preview** (optional): below the image, a screenshot of the rendered source page scrolled to the
-  image - so you can check without leaving the tool whether an AI label is shown on/near the image.
+  image - so you can check without leaving the tool whether an AI label is shown on/near the image. A
+  cookie banner is dismissed beforehand (see above).
+- **Cancel a scan** with `x`: the key only appears in the footer while a run is in progress. The
+  cancellation is cooperative - requests already under way finish, no new ones start, and the images
+  found so far stay in the table. Before, only `q` was left, and that discarded the partial result.
 - **Filter & sorting**, an "AI images only" toggle, **export** via right-click (JSON, JIRA table, plain
   text) and **test-image signing** as a positive fixture. The JIRA table comes in two formats
   (Settings -> Export): **Markdown** for Jira Cloud (converts to a real table when pasted into a

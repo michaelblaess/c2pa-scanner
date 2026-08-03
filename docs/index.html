@@ -129,6 +129,16 @@
         <p>Optional: unter dem Bild ein Screenshot der gerenderten Fundseite, <strong>zum Bild gescrollt</strong> - so prüfst Du ohne Absprung, ob das KI-Label auf/am Bild dargestellt wird. Eigener Playwright-Sidecar mit Cache und Cookie-Consent-Handling.</p>
       </div>
       <div class="feature-card">
+        <div class="feature-icon">🍪</div>
+        <h3>Cookie-Consent</h3>
+        <p>Ein Banner (Usercentrics, OneTrust, Cookiebot) wird automatisch bestätigt, sobald es geladen ist &mdash; sonst verdeckt es die Seiten-Vorschau, und beim Rendern bleiben Bilder ungeladen, die eine Seite erst nach der Zustimmung freigibt. Der Manager kommt per Skript nach und ist beim Laden der Seite noch nicht da, deshalb wird auf ihn gewartet statt einmal zu raten. Abschaltbar in den Einstellungen bzw. mit <code>--no-consent</code>.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⏹️</div>
+        <h3>Scan abbrechen</h3>
+        <p>Die Taste <code>x</code> steht nur während eines Laufs im Fuß und beendet ihn &mdash; angestoßene Abrufe laufen aus, neue kommen keine mehr dazu. Die bis dahin gefundenen Bilder <strong>bleiben in der Tabelle</strong>, statt wie beim Beenden mit <code>q</code> verloren zu gehen.</p>
+      </div>
+      <div class="feature-card">
         <div class="feature-icon">📋</div>
         <h3>Export</h3>
         <p>Rechtsklick-Kontextmenü auf der Tabelle: Export als JSON, JIRA-Tabelle oder Klartext &mdash; in die Zwischenablage oder als Datei. Filter auf &bdquo;Nur KI-Bilder&ldquo;.</p>
@@ -215,6 +225,7 @@
           <tr><td><code>scan &lt;sitemap&gt;</code></td><td>Sitemap crawlen und Bilder prüfen (URL, .xml oder Domain)</td><td class="default">—</td></tr>
           <tr><td><code>scan --render</code></td><td>Seiten mit Playwright rendern (JS-/Shadow-DOM-Bilder)</td><td class="default">aus</td></tr>
           <tr><td><code>scan --rate-limit N</code></td><td>Höchstens N Requests pro Minute (Seiten, Renderings, Bilder). 0 = ohne Limit</td><td class="default">60</td></tr>
+          <tr><td><code>scan --no-consent</code></td><td>Cookie-Banner stehen lassen statt zu bestätigen (wirkt nur mit <code>--render</code>)</td><td class="default">aus</td></tr>
           <tr><td><code>scan --ignore-robots</code></td><td>robots.txt ignorieren (nur für eigene Seiten sinnvoll)</td><td class="default">aus</td></tr>
           <tr><td><code>scan --accept-disclaimer</code></td><td>Haftungshinweis bestätigen (einmalig nötig)</td><td class="default">aus</td></tr>
           <tr><td><code>make-testimage &lt;out&gt;</code></td><td>Signiertes C2PA-Testbild erzeugen</td><td class="default">—</td></tr>
