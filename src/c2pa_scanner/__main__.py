@@ -6,6 +6,7 @@ import argparse
 import os
 import sys
 from pathlib import Path
+from typing import TextIO
 
 # PLAYWRIGHT_BROWSERS_PATH muss gesetzt sein, BEVOR playwright importiert wird,
 # damit das gebundelte Chromium im "browsers"-Unterordner gefunden wird.
@@ -21,7 +22,7 @@ from c2pa_scanner.domain.models import ImageFinding, Verdict  # noqa: E402
 
 # Log-Handle offen halten, solange der Prozess laeuft - faulthandler schreibt
 # beim fatalen Signal direkt hinein. Ohne Referenz wuerde der GC es schliessen.
-_fault_log: object | None = None
+_fault_log: TextIO | None = None
 
 _VERDICT_LABEL = {
     Verdict.AI_GENERATED: "KI-GENERIERT",
@@ -225,6 +226,7 @@ def _enable_faulthandler() -> None:
     weiter in der Datei, wurde der Prozess von aussen abgeraeumt, statt an einem
     Fehler zu sterben, den Python haette sehen koennen.
     """
+    import atexit
     import contextlib
     import faulthandler
     from datetime import datetime
@@ -242,6 +244,8 @@ def _enable_faulthandler() -> None:
         _fault_log.write(f"\n===== Start {stamp} - v{__version__} =====\n")
         _fault_log.flush()
         faulthandler.enable(file=_fault_log, all_threads=True)
+        # Gegenstueck zur Startzeile - siehe _write_fault_end.
+        atexit.register(_write_fault_end)
 
 
 def _reset_mouse_tracking() -> None:
@@ -363,3 +367,27 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+def _write_fault_end() -> None:
+    """Schreibt die Endzeile der Sitzungsklammer (ueber atexit registriert).
+
+    Erst dieses Gegenstueck zur Startzeile macht die Datei aussagekraeftig:
+
+      Start + Ende            -> sauber beendet
+      Start + Traceback       -> Python-Fehler (der Handler hat ihn gesehen)
+      Start und sonst nichts  -> Prozess hart abgeraeumt
+
+    Unter Windows hilft ein Signalhandler dabei nicht: ein Abbruch von aussen
+    laeuft dort ueber TerminateProcess und liefert dem Ziel kein abfangbares
+    Signal. Die FEHLENDE Endzeile ist der einzige Beleg.
+    """
+    import contextlib
+    from datetime import datetime
+
+    if _fault_log is None:
+        return
+    with contextlib.suppress(Exception):
+        stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        _fault_log.write(f"===== Ende {stamp} =====\n")
+        _fault_log.flush()
