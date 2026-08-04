@@ -188,6 +188,26 @@ eine rechtssichere KI-Kennzeichnung nach EU AI Act Art. 50 zu unterstützen.
 
 ## Wenn etwas schiefgeht
 
+### Auf einem Intel-Mac startet es nicht
+
+`zsh: bad CPU type in executable` heißt: Die Architektur passt nicht. Die
+fertigen Programmdateien werden nur für Apple Silicon (arm64) gebaut. Rosetta
+löst das nicht - es übersetzt x86 nach arm, nicht umgekehrt -, und ein
+Softwareupdate hilft ebenfalls nicht.
+
+Nimm auf solchen Rechnern den Weg über den Quellcode. Er funktioniert auf
+beiden Architekturen, weil [uv](https://docs.astral.sh/uv/) ein zu Deinem
+Prozessor passendes Python holt:
+
+```bash
+git clone https://github.com/michaelblaess/c2pa-scanner.git
+cd c2pa-scanner
+./bootstrap.sh    # einmalig
+./run.sh          # jedes Mal
+```
+
+### Absturzberichte
+
 Stuerzt das Programm ab, landet der Bericht auf Platte statt nur im Terminal -
 zwei Dateien neben den Einstellungen, beide im Speicherort-Tab der
 Einstellungen verlinkt, sobald es sie gibt:

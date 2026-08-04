@@ -184,6 +184,25 @@ purpose of supporting compliant AI labeling under EU AI Act Art. 50.
 
 ## When something goes wrong
 
+### It will not start on an Intel Mac
+
+`zsh: bad CPU type in executable` means the architecture does not match: the
+release binaries are built for Apple Silicon (arm64) only. Rosetta cannot fix
+this - it translates x86 to arm, not the other way round, and a software update
+does not help either.
+
+Run it from source instead - that route works on both architectures, because
+[uv](https://docs.astral.sh/uv/) fetches the Python matching your processor:
+
+```bash
+git clone https://github.com/michaelblaess/c2pa-scanner.git
+cd c2pa-scanner
+./bootstrap.sh    # once
+./run.sh          # every time
+```
+
+### Crash reports
+
 If the program crashes, the report is written to disk instead of only to the
 terminal - two files next to the settings, both linked from the storage tab in
 the settings once they exist:
