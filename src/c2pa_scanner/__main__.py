@@ -365,10 +365,6 @@ def main() -> int:
     return result
 
 
-if __name__ == "__main__":
-    sys.exit(main())
-
-
 def _write_fault_end() -> None:
     """Schreibt die Endzeile der Sitzungsklammer (ueber atexit registriert).
 
@@ -391,3 +387,7 @@ def _write_fault_end() -> None:
         stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         _fault_log.write(f"===== Ende {stamp} =====\n")
         _fault_log.flush()
+
+
+if __name__ == "__main__":
+    sys.exit(main())
