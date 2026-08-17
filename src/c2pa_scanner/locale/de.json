@@ -46,6 +46,7 @@
   "table.count_filtered": "{shown} / {total} Bilder",
 
   "log.sitemap_loaded": "Sitemap geladen: {sitemap} - 'c' zum Scannen",
+  "log.theme_active": "Theme: {name}",
   "log.scan_start": "Scan: {sitemap}",
   "log.c2pa_unavailable": "C2PA-Bibliothek nicht ladbar: {error}",
   "log.scan_error": "Scan-Fehler: {error}",
