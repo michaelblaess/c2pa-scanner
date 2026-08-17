@@ -212,6 +212,7 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         install_playwright_shutdown_guard(asyncio.get_running_loop())
         self.query_one("#log", LogPanel).border_title = t("app.log_title")
         self._update_stats()
+        self._log_theme()
         # Fokus auf die Tabelle, NICHT auf die Suchleiste - ein fokussiertes
         # Text-Input wuerde die Buchstaben-Shortcuts aus dem Footer ausblenden.
         self.call_after_refresh(self._focus_table)
@@ -829,6 +830,23 @@ class C2paScannerApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # 
         if not hasattr(self, "_settings_store"):
             return
         self._persist({"theme": theme})
+        self._log_theme()
+
+    def _log_theme(self) -> None:
+        """Meldet das aktive Theme im Log.
+
+        Textual zeigt nirgends an, welches Theme gerade laeuft - nach einem
+        Neustart weiss man also nicht, was man vor sich hat. Der technische
+        Name steht mit dabei, weil genau der in den Einstellungen und in der
+        Befehlspalette auftaucht.
+        """
+        with contextlib.suppress(Exception):
+            from textual_themes import THEME_DISPLAY_NAMES
+
+            name = self.theme or ""
+            anzeige = THEME_DISPLAY_NAMES.get(name, name)
+            beschriftung = f"{anzeige} ({name})" if anzeige != name else name
+            self.post_message(LogMessage.info(t("log.theme_active", name=beschriftung)))
 
     def action_show_settings(self) -> None:
         from c2pa_scanner.screens.settings_screen import SettingsScreen
