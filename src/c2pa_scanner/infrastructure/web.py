@@ -27,13 +27,27 @@ _IMG_URL_RE = re.compile(
 
 
 class _ImgParser(HTMLParser):
-    """Sammelt src/data-src/srcset aus allen <img>-Tags."""
+    """Sammelt src/data-src/srcset aus allen <img>-Tags und die Stellen fuer die Regex-Suche.
+
+    Die Regex-Suche laeuft nur ueber Markup: Attributwerte aller Tags sowie den
+    Inhalt von <script> und <style>. Text zwischen den Tags bleibt aussen vor -
+    sonst wird ein Dateiname im Fliesstext oder in einem Codeblock
+    (`make-testimage ./test-ai.jpg`) zur Bild-URL und endet als HTTP 404.
+    """
+
+    _RAW_TEXT_TAGS = ("script", "style")
 
     def __init__(self) -> None:
         super().__init__()
         self.srcs: list[str] = []
+        self.markup: list[str] = []
+        self._raw_text_depth = 0
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        # Attributwerte kommen bereits entity-dekodiert an (&quot; -> ")
+        self.markup.extend(value for _, value in attrs if value)
+        if tag.lower() in self._RAW_TEXT_TAGS:
+            self._raw_text_depth += 1
         if tag.lower() != "img":
             return
         values = {name.lower(): (value or "") for name, value in attrs}
@@ -45,6 +59,20 @@ class _ImgParser(HTMLParser):
             first = srcset.split(",")[0].strip().split(" ")[0]
             if first:
                 self.srcs.append(first)
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self.handle_starttag(tag, attrs)
+        if tag.lower() in self._RAW_TEXT_TAGS:
+            self._raw_text_depth -= 1
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() in self._RAW_TEXT_TAGS and self._raw_text_depth > 0:
+            self._raw_text_depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        # Inhalt von <script>/<style> liefert der Parser roh, deshalb hier dekodieren
+        if self._raw_text_depth > 0:
+            self.markup.append(unescape(data))
 
 
 def _is_svg(url: str) -> bool:
@@ -73,12 +101,14 @@ def extract_image_urls_from_html(html: str, base_url: str) -> list[str]:
     parser.feed(html)
     for src in parser.srcs:
         add(src)
-    # Entities VOR der Regex-Suche aufloesen: in eingebettetem JSON stehen die
-    # String-Grenzen als &quot; im HTML. Roh wuerde die Zeichenklasse ueber diese
-    # &quot; hinweglaufen und JSON-Fragmente (z.B. /RestApi/comments-api/... bis
-    # zum naechsten Bildsuffix) als eine Muell-URL einfangen.
-    for match in _IMG_URL_RE.finditer(unescape(html)):
-        add(match.group(0))
+    # Jedes Fragment einzeln durchsuchen, damit die Zeichenklasse nicht ueber
+    # Attributgrenzen hinweglaeuft. Entities muessen dabei aufgeloest sein: in
+    # eingebettetem JSON stehen die String-Grenzen als &quot;, roh wuerde die Regex
+    # JSON-Fragmente (z.B. /RestApi/comments-api/... bis zum naechsten Bildsuffix)
+    # als eine Muell-URL einfangen. Das erledigt der Parser (siehe _ImgParser).
+    for fragment in parser.markup:
+        for match in _IMG_URL_RE.finditer(fragment):
+            add(match.group(0))
 
     return result
 

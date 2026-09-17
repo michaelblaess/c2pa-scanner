@@ -70,6 +70,29 @@ class TestImageExtraction:
         assert "https://ex.com/SFRes/images/Default.Photo.png" in urls
         assert all("RestApi" not in u for u in urls)
 
+    def test_ignores_file_names_in_text_and_code(self) -> None:
+        # Ein Blogbeitrag auf michaelblaess.de zeigt den Befehl
+        # "c2pa-scanner make-testimage ./test-ai.jpg" im Codeblock. Der Text ist
+        # kein Bild der Seite und darf nicht als /test-ai.jpg (HTTP 404) enden.
+        html = (
+            "<p>Das Bild liegt unter /media/beispiel.png.</p>"
+            '<pre><code><span style="color:#9ECBFF"> ./test-ai.jpg</span></code></pre>'
+        )
+        urls = extract_image_urls_from_html(html, "https://ex.com/blog/c2pa-scanner/")
+        assert urls == []
+
+    def test_finds_urls_in_script_and_style(self) -> None:
+        # Markup bleibt Suchraum: eingebettetes JSON und CSS tragen echte Bild-URLs
+        html = (
+            '<script type="application/ld+json">{"image": "https://ex.com/og.jpg"}</script>'
+            "<style>.hero { background: url(/img/hero.webp); }</style>"
+            '<div style="background-image: url(/img/inline.png)"></div>'
+        )
+        urls = extract_image_urls_from_html(html, "https://ex.com/")
+        assert "https://ex.com/og.jpg" in urls
+        assert "https://ex.com/img/hero.webp" in urls
+        assert "https://ex.com/img/inline.png" in urls
+
 
 class TestReadBytes:
     def test_detects_ai(self, tmp_path: Path) -> None:
