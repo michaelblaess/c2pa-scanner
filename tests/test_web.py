@@ -81,6 +81,16 @@ class TestImageExtraction:
         urls = extract_image_urls_from_html(html, "https://ex.com/blog/c2pa-scanner/")
         assert urls == []
 
+    def test_ignores_links_to_images_on_foreign_hosts(self) -> None:
+        # Bildnachweis-Links auf Wikimedia Commons enden auf .png, sind aber HTML-Seiten.
+        # Auf michaelblaess.de landeten drei davon als "Bilder" in der Liste.
+        html = (
+            '<a href="https://commons.wikimedia.org/wiki/File:Beispiel.png">Foto</a>'
+            '<a href="https://michaelblaess.de/images/gross.jpg">Vollansicht</a>'
+        )
+        urls = extract_image_urls_from_html(html, "https://www.michaelblaess.de/blog/x/")
+        assert urls == ["https://michaelblaess.de/images/gross.jpg"]
+
     def test_finds_urls_in_script_and_style(self) -> None:
         # Markup bleibt Suchraum: eingebettetes JSON und CSS tragen echte Bild-URLs
         html = (

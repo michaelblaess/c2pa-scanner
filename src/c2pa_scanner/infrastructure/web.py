@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 from html import unescape
 from html.parser import HTMLParser
-from urllib.parse import urldefrag, urljoin
+from urllib.parse import urldefrag, urljoin, urlparse
 
 import httpx
 
@@ -41,6 +41,7 @@ class _ImgParser(HTMLParser):
         super().__init__()
         self.srcs: list[str] = []
         self.markup: list[str] = []
+        self.links: list[str] = []
         self._raw_text_depth = 0
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
@@ -48,6 +49,8 @@ class _ImgParser(HTMLParser):
         self.markup.extend(value for _, value in attrs if value)
         if tag.lower() in self._RAW_TEXT_TAGS:
             self._raw_text_depth += 1
+        if tag.lower() == "a":
+            self.links.extend(value for name, value in attrs if name.lower() == "href" and value)
         if tag.lower() != "img":
             return
         values = {name.lower(): (value or "") for name, value in attrs}
@@ -73,6 +76,12 @@ class _ImgParser(HTMLParser):
         # Inhalt von <script>/<style> liefert der Parser roh, deshalb hier dekodieren
         if self._raw_text_depth > 0:
             self.markup.append(unescape(data))
+
+
+def _host(url: str) -> str:
+    """Host ohne fuehrendes www., damit michaelblaess.de und www.michaelblaess.de gleich zaehlen."""
+    host = urlparse(url).netloc.lower()
+    return host[4:] if host.startswith("www.") else host
 
 
 def _is_svg(url: str) -> bool:
@@ -101,6 +110,17 @@ def extract_image_urls_from_html(html: str, base_url: str) -> list[str]:
     parser.feed(html)
     for src in parser.srcs:
         add(src)
+    # Ein Link auf ein Bild bei einem FREMDEN Host ist ein Verweis, kein Bild der
+    # Seite - typisch ist der Bildnachweis auf Wikimedia Commons, dessen Adresse
+    # auf .png endet (.../wiki/File:Beispiel.png ist eine HTML-Seite). Auf dem
+    # eigenen Host bleibt so ein Link drin: dort ist es meist die Vollansicht eines
+    # Bildes, das die Seite auch zeigt. Gleiche Regel wie in SiteHammer.
+    own_host = _host(base_url)
+    foreign_links = {
+        absolute
+        for absolute in (urldefrag(urljoin(base_url, link.strip()))[0] for link in parser.links)
+        if absolute and _host(absolute) != own_host
+    }
     # Jedes Fragment einzeln durchsuchen, damit die Zeichenklasse nicht ueber
     # Attributgrenzen hinweglaeuft. Entities muessen dabei aufgeloest sein: in
     # eingebettetem JSON stehen die String-Grenzen als &quot;, roh wuerde die Regex
@@ -108,6 +128,8 @@ def extract_image_urls_from_html(html: str, base_url: str) -> list[str]:
     # als eine Muell-URL einfangen. Das erledigt der Parser (siehe _ImgParser).
     for fragment in parser.markup:
         for match in _IMG_URL_RE.finditer(fragment):
+            if urldefrag(urljoin(base_url, match.group(0).strip()))[0] in foreign_links:
+                continue
             add(match.group(0))
 
     return result
