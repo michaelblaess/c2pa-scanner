@@ -7,6 +7,13 @@
 
 ---
 
+<p align="center">
+  <img src="docs/banner.jpg" alt="c2pa-scanner - Bilder mit den Kennzeichnungen KI-generiert, KI-bearbeitet und geprüfte Herkunft" width="100%">
+  <br>
+  <sub>Dieses Banner ist KI-generiert (Google Gemini) und trägt sein signiertes C2PA-Manifest -
+  c2pa-scanner stuft es als <b>KI-generiert</b> ein (<code>trainedAlgorithmicMedia</code>).</sub>
+</p>
+
 Erkennt den **C2PA-Herkunftsnachweis** in Bildern und filtert die **KI-generierten**
 heraus - damit Du sie nach dem EU AI Act (Art. 50) kennzeichnen kannst.
 
