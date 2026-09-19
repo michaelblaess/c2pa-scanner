@@ -7,6 +7,13 @@
 
 ---
 
+<p align="center">
+  <img src="docs/banner.jpg" alt="c2pa-scanner - images labeled as AI-generated, AI-edited or verified origin" width="100%">
+  <br>
+  <sub>This banner is AI-generated (Google Gemini) and carries its signed C2PA manifest -
+  c2pa-scanner classifies it as <b>AI-generated</b> (<code>trainedAlgorithmicMedia</code>).</sub>
+</p>
+
 Detects the **C2PA provenance manifest** in images and flags the ones that are
 **AI-generated** - so you can label them as required by the EU AI Act (Art. 50).
 
