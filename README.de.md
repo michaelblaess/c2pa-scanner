@@ -91,6 +91,19 @@ des Lebens, des Körpers oder der Gesundheit sowie nach dem Produkthaftungsgeset
 Beim ersten Start fragt das Programm diesen Hinweis ab. Auf der Kommandozeile bestätigst Du ihn
 einmalig mit `--accept-disclaimer`.
 
+## Installation
+
+Ist [uv](https://docs.astral.sh/uv/) installiert (Python ab 3.12), läuft es ohne Installation:
+
+```bash
+uvx c2pa-scanner
+```
+
+Oder von [PyPI](https://pypi.org/project/c2pa-scanner/) installieren mit
+`pip install c2pa-scanner`. `--render` braucht ein Chromium für Playwright, einmalig geholt mit
+`uvx --from c2pa-scanner playwright install chromium` (oder `playwright install chromium` nach
+`pip install`).
+
 ## Verwendung
 
 ```bash

@@ -91,6 +91,20 @@ law remains unaffected.
 On first start the program asks you to confirm this notice. On the command line, confirm it once
 with `--accept-disclaimer`.
 
+## Installation
+
+With [uv](https://docs.astral.sh/uv/) installed (Python 3.12 or newer), it runs without
+installing:
+
+```bash
+uvx c2pa-scanner
+```
+
+Or install it from [PyPI](https://pypi.org/project/c2pa-scanner/) with `pip install c2pa-scanner`.
+`--render` needs a Chromium for Playwright, fetched once with
+`uvx --from c2pa-scanner playwright install chromium` (or `playwright install chromium` after
+`pip install`).
+
 ## Usage
 
 ```bash
