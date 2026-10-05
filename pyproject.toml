@@ -1,14 +1,25 @@
 [build-system]
-requires = ["setuptools>=68.0", "wheel"]
+requires = ["setuptools>=77.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "c2pa-scanner"
-version = "0.7.0"
+version = "0.7.1"
 description = "Detect C2PA provenance / AI-generated images in website sitemaps (EU AI Act Art. 50)"
 requires-python = ">=3.12"
-license = { text = "Apache-2.0" }
+readme = "README.md"
+license = "Apache-2.0"
 authors = [{ name = "Michael Blaess" }]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Intended Audience :: Developers",
+    "Topic :: Internet :: WWW/HTTP :: Site Management",
+    "Topic :: Multimedia :: Graphics",
+]
 dependencies = [
     "c2pa-python>=0.36",
     "Pillow>=10.0",
@@ -19,8 +30,8 @@ dependencies = [
     "rich>=13.0",
     "textual-image[textual]>=0.12.0",
     "textual-fspicker>=1.0",
-    "textual-themes @ git+https://github.com/michaelblaess/textual-themes.git",
-    "textual-widgets @ git+https://github.com/michaelblaess/textual-widgets.git",
+    "textual-themes[textual]>=0.15.1",
+    "textual-widgets>=0.32.1",
     "textual-slider>=0.2.0",
 ]
 
@@ -31,6 +42,11 @@ dev = [
     "ruff>=0.6",
     "poethepoet>=0.27",
 ]
+
+[project.urls]
+Homepage = "https://github.com/michaelblaess/c2pa-scanner"
+Repository = "https://github.com/michaelblaess/c2pa-scanner"
+Issues = "https://github.com/michaelblaess/c2pa-scanner/issues"
 
 [project.scripts]
 c2pa-scanner = "c2pa_scanner.__main__:main"
