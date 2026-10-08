@@ -85,7 +85,7 @@ wheels = [
 
 [[package]]
 name = "c2pa-scanner"
-version = "0.7.2"
+version = "0.7.3"
 source = { editable = "." }
 dependencies = [
     { name = "c2pa-python" },
